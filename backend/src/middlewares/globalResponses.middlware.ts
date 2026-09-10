@@ -13,7 +13,7 @@ const globalResponses: RequestHandler = (_req, res, next) => {
 };
 
 const globalError: ErrorRequestHandler = (err, _req, res, _next) => {
-    let statusCode = err.status || 500
+    let statusCode = err.statusCode || err.status || 500
     let errorMessage = err.message || "Internal Server Error"
 
     return res.status(statusCode).json({message:errorMessage})

@@ -1,0 +1,19 @@
+# Local package-manager cache and build output
+.pnpm-store/
+**/node_modules/
+**/dist/
+
+# Credentials and machine-specific configuration
+.env
+.env.*
+!.env.example
+
+# Local agent instructions and planning documents
+AGENTS.md
+DEVARENA_SPEC.md
+
+# Tooling and editor files
+.DS_Store
+*.log
+.idea/
+.vscode/

@@ -14,6 +14,7 @@ import passport from "./config/passport.js";
 import session from "express-session";
 
 import authRoutes from "./routes/auth.routes.js"
+import userRoutes from "./routes/user.routes.js";
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use(passport.session());
 ///routes
 
 app.use("/api/v1/auth",authRoutes)
+app.use("/api/v1/users", userRoutes);
 
 app.use(globalError);
 

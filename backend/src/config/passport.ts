@@ -71,7 +71,7 @@ passport.use(
         const user = await findOrCreateOAuthUser({
           provider: "github",
           providerAccountId: profile.id,
-          name: profile.displayName || profile.username,
+          name: profile.username || profile.displayName,
           email: profile.emails?.[0]?.value ?? null,
           avatar: profile.photos?.[0]?.value ?? null,
           accessToken,

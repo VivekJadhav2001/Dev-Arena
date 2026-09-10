@@ -10,15 +10,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.3",
     "axios": "^1.7.7",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "framer-motion": "^11.11.10",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.453.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.3",
     "recharts": "^2.13.0",
+    "socket.io-client": "^4.8.3",
     "tailwind-merge": "^2.5.4",
     "zustand": "^4.5.5"
   },
