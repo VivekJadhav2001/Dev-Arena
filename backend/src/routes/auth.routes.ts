@@ -34,7 +34,7 @@ router.get(
   }),
 
   (_req, res) => {
-    res.redirect(`${process.env.FRONTEND_URL}/`);
+    res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
   },
 );
 
@@ -53,7 +53,7 @@ router.get(
     "/github",
     passport.authenticate("github",
         {
-            scope:["user:email"]
+            scope:["read:user", "user:email"]
         }
     )
 )
@@ -72,7 +72,7 @@ router.get(
         }
     ),
     (_req,res)=>{
-        res.redirect(`${process.env.FRONTEND_URL}`);
+        res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
     }
 )
 

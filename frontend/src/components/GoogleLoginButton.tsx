@@ -1,18 +1,15 @@
-import React from "react";
-import { BACKEND_URL } from "../utils/constants";
+import { BACKEND_URL } from "../utils/constants"
 
-type Props = {};
-
-function GoogleLoginButton({}: Props) {
-  
+const GoogleLoginButton = () => {
   const handleGoogleLogin = () => {
-    window.location.href = `${BACKEND_URL}/auth/google`;
-  };
+    window.location.href = `${BACKEND_URL}/auth/google`
+  }
+
   return (
     <button type="button" onClick={handleGoogleLogin}>
       Continue with Google
-    </button>
-  );
+  </button>
+  )
 }
 
-export default GoogleLoginButton;
+export default GoogleLoginButton
