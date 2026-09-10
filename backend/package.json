@@ -13,13 +13,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "^11.22.0",
-      "onFail": "download"
-    }
-  },
+  "packageManager": "pnpm@10.26.1",
   "type": "module",
   "dependencies": {
     "cors": "^2.8.6",
@@ -35,15 +29,15 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/cors": "...",
-    "@types/express": "...",
-    "@types/express-session": "...",
-    "@types/node": "...",
-    "@types/passport": "...",
-    "@types/passport-github2": "...",
-    "@types/passport-google-oauth20": "...",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/express-session": "^1.18.2",
+    "@types/node": "^22.10.2",
+    "@types/passport": "^1.0.17",
+    "@types/passport-github2": "^1.2.9",
+    "@types/passport-google-oauth20": "^2.0.16",
     "nodemon": "^3.1.14",
-    "tsx": "...",
-    "typescript": "..."
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
   }
 }
