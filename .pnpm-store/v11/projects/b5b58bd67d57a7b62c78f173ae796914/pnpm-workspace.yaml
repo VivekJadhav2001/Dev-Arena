@@ -1,0 +1,4 @@
+minimumReleaseAgeExclude:
+  - '@rolldown/binding-darwin-x64@1.2.8'
+  - '@rolldown/binding-linux-x64-gnu@1.2.8'
+  - '@rolldown/binding-openharmony-arm64@1.2.8'
