@@ -2,10 +2,13 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "server.js",
+  "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon src/server.js"
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
@@ -22,13 +25,25 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^7.4.1",
     "express-session": "^1.19.0",
+    "helmet": "^7.1.0",
     "mongoose": "^9.9.5",
     "passport": "^0.7.0",
     "passport-github2": "^0.1.12",
-    "passport-google-oauth20": "^2.0.0"
+    "passport-google-oauth20": "^2.0.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@types/cors": "...",
+    "@types/express": "...",
+    "@types/express-session": "...",
+    "@types/node": "...",
+    "@types/passport": "...",
+    "@types/passport-github2": "...",
+    "@types/passport-google-oauth20": "...",
+    "nodemon": "^3.1.14",
+    "tsx": "...",
+    "typescript": "..."
   }
 }
