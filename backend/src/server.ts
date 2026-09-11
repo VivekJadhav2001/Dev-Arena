@@ -15,6 +15,9 @@ import session from "express-session";
 
 import authRoutes from "./routes/auth.routes.js"
 import userRoutes from "./routes/user.routes.js";
+import dnaRoutes from "./routes/dna.routes.js";
+import dashboardRoutes from "./routes/dashboard.routes.js";
+import arenaRoutes from "./routes/arena.routes.js";
 
 const app = express();
 
@@ -59,6 +62,9 @@ app.use(passport.session());
 
 app.use("/api/v1/auth",authRoutes)
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/dna", dnaRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes);
+app.use("/api/v1/arena", arenaRoutes);
 
 app.use(globalError);
 

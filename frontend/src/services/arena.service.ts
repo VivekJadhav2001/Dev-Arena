@@ -78,13 +78,13 @@ export const arenaService = {
     return response.data
   },
 
-  async getRoom(battleId: string): Promise<IApiResponse<IBattleRoomState>> {
-    const response = await apiRequest<IApiResponse<IBattleRoomState>>('get', `/arena/${battleId}`)
+  async getRoom(roomCode: string): Promise<IApiResponse<IBattleRoomState>> {
+    const response = await apiRequest<IApiResponse<IBattleRoomState>>('get', `/arena/${roomCode}`)
     return response
   },
 
-  async startBattle(battleId: string): Promise<IApiResponse<IBattleRoomState>> {
-    const response = await apiRequest<IApiResponse<IBattleRoomState>>('post', `/arena/${battleId}/start`)
+  async startBattle(roomCode: string): Promise<IApiResponse<IBattleRoomState>> {
+    const response = await apiRequest<IApiResponse<IBattleRoomState>>('post', `/arena/${roomCode}/start`)
     return response
   },
 

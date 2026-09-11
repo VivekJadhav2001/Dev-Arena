@@ -277,4 +277,4 @@ userSchema.index({ xp: -1, level: -1 });
 userSchema.index({ "battleStats.wins": -1 });
 userSchema.index({ "nearbyLocation.geohash": 1 });
 
-export const User = mongoose.model("User", userSchema);
+export const User = mongoose.model<IUser>("User", userSchema);
