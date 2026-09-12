@@ -15,6 +15,14 @@ import session from "express-session";
 
 import authRoutes from "./routes/auth.routes.js"
 import userRoutes from "./routes/user.routes.js";
+import dnaRoutes from "./routes/dna.routes.js";
+import dashboardRoutes from "./routes/dashboard.routes.js";
+import arenaRoutes from "./routes/arena.routes.js";
+import developersRoutes from "./routes/developers.routes.js";
+import challengesRoutes from "./routes/challenges.routes.js";
+import wrappedRoutes from "./routes/wrapped.routes.js";
+import { sweepExpiredChallenges } from "./controllers/challenge.controller.js";
+import { initSockets } from "./sockets/index.js";
 
 const app = express();
 
@@ -59,7 +67,20 @@ app.use(passport.session());
 
 app.use("/api/v1/auth",authRoutes)
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/dna", dnaRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes);
+app.use("/api/v1/arena", arenaRoutes);
+app.use("/api/v1/developers", developersRoutes);
+app.use("/api/v1/challenges", challengesRoutes);
+app.use("/api/v1/wrapped", wrappedRoutes);
 
 app.use(globalError);
 
-app.listen(process.env.PORT, () => console.log(`Server is running ${process.env.PORT}`));
+const httpServer = app.listen(process.env.PORT, () => console.log(`Server is running ${process.env.PORT}`));
+
+initSockets(httpServer, process.env.FRONTEND_URL || "*");
+
+// Background sweep: expire pending challenges so offline users don't pile up stale invites.
+setInterval(() => {
+  void sweepExpiredChallenges();
+}, 60 * 1000);

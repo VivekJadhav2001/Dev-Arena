@@ -1,13 +1,15 @@
 import type { NextFunction, Request, Response } from "express";
+import { toPublicUser } from "../utils/user-public.js";
+import { User } from "../models/user.model.js";
 
 const getCurrentUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
     //after successfull login
-    const user = req.user;
 
-    console.log(user, "USER from /me route");
-
-    return res.success(200, "Profile Details", user);
+    if (!req.user) return res.error(401, "Authentication required");
+    const user = await User.findById(req.user.id);
+    if (!user) return res.error(401, "Authentication required");
+    return res.success(200, "Profile Details", toPublicUser(user));
   } catch (error) {
     next(error);
   }

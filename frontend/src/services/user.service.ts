@@ -6,6 +6,7 @@ export interface UpdateSettingsRequest {
   showEmail?: boolean
   notifications?: boolean
   theme?: 'dark' | 'light' | 'system'
+  allowChallenges?: boolean
 }
 
 export const userService = {

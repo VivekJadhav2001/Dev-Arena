@@ -6,17 +6,40 @@ import {
   Trophy,
   Sparkles,
   UserRound,
+  Inbox,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChallengeNotifications } from "../components/challenges/ChallengeNotifications";
+import { LeetCodeUsernameModal } from "../components/leetcode/LeetCodeUsernameModal";
+import { useAppStore } from "../store/app.store";
+import { useAuthStore } from "../store/auth.store";
 
 const navItems = [
   { to: "/dashboard", label: "My proof", icon: BarChart3 },
   { to: "/wrapped", label: "Wrapped", icon: Sparkles },
   { to: "/arena", label: "Battle", icon: Swords },
+  { to: "/challenges", label: "Requests", icon: Inbox },
   { to: "/leaderboard", label: "Rankings", icon: Trophy },
-  { to: "/u/vivek", label: "Profile", icon: UserRound },
 ];
 
 export function MainLayout() {
+  const user = useAuthStore((s) => s.user);
+  const loading = useAuthStore((s) => s.loading);
+  const bootstrap = useAppStore((s) => s.bootstrap);
+  // The layout persists across route changes, so the session is validated
+  // once here instead of on every page. Heavy app data (DNA, dashboard,
+  // battle history) is bootstrapped right after authentication.
+  useEffect(() => {
+    void useAuthStore.getState().checkSession();
+  }, []);
+  useEffect(() => {
+    if (user) void bootstrap(user.id);
+  }, [user, bootstrap]);
+  // Auto-prompt for the LeetCode username once per session when it is missing.
+  const [leetcodeDismissed, setLeetcodeDismissed] = useState(false);
+  const showLeetCodePrompt = !loading && !!user && !user.leetcodeUsername && !leetcodeDismissed;
+  const profilePath = user ? `/u/${user.userName}` : "/dashboard";
+  const items = [...navItems, { to: profilePath, label: "Profile", icon: UserRound }];
   return (
     <div className="min-h-screen text-text">
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/85 backdrop-blur-xl">
@@ -31,7 +54,7 @@ export function MainLayout() {
             DevArena
           </NavLink>
           <nav className="hidden items-center gap-1 md:flex">
-            {navItems.map(({ to, label, icon: Icon }) => (
+            {items.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -45,17 +68,21 @@ export function MainLayout() {
             ))}
           </nav>
           <NavLink
-            to="/u/vivek"
+            to={profilePath}
             className="flex items-center gap-2 rounded-full border border-border bg-surface px-2 py-1.5 text-sm"
           >
-            <span className="grid h-7 w-7 place-items-center rounded-full bg-secondary font-bold text-white">
-              VJ
-            </span>
-            <span className="hidden sm:block">Level 12</span>
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
+            ) : (
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-secondary font-bold text-white">
+                {(user?.userName?.[0] ?? 'D').toUpperCase()}
+              </span>
+            )}
+            <span className="hidden sm:block">Level {user?.level ?? '–'}</span>
           </NavLink>
         </div>
         <nav className="flex gap-1 overflow-x-auto border-t border-border px-3 py-2 md:hidden">
-          {navItems.map(({ to, label }) => (
+          {items.map(({ to, label }) => (
             <NavLink
               key={to}
               to={to}
@@ -71,6 +98,10 @@ export function MainLayout() {
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <Outlet />
       </main>
+      <ChallengeNotifications />
+      {showLeetCodePrompt && (
+        <LeetCodeUsernameModal onClose={() => setLeetcodeDismissed(true)} />
+      )}
     </div>
   );
 }

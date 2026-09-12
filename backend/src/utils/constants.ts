@@ -22,8 +22,10 @@ export type BadgeTier = (typeof BADGE_TIERS)[number];
 export const BATTLE_STATUSES = ["waiting", "active", "finished", "cancelled"] as const;
 export type BattleStatus = (typeof BATTLE_STATUSES)[number];
 
-export const BATTLE_MODES = ["1v1", "tournament"] as const;
+export const BATTLE_MODES = ["1v1", "royale"] as const;
 export type BattleMode = (typeof BATTLE_MODES)[number];
+
+export const MAX_ROYALE_PLAYERS = 8;
 
 export const DIFFICULTIES = ["easy", "medium", "hard"] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];

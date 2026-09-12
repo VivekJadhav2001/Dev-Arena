@@ -1,98 +1,99 @@
-import type { IUser } from "../models/user.model.js";
-import { ApiError } from "../utils/apiError.js";
+import { User, type IUser } from "../models/user.model.js";
+import { ApiError, isApiError } from "../utils/apiError.js";
 
-type GitHubRepo = { name: string; fork: boolean; stargazers_count: number; forks_count: number; language: string | null };
-type GitHubEvent = { type: string; created_at: string; repo: { name: string }; payload?: { size?: number } };
-type GitHubViewer = { login: string; public_repos: number; followers: number; following: number };
+type GitHubRepo = { name: string; full_name: string; fork: boolean; stargazers_count: number; forks_count: number; language: string | null; owner: { login: string } };
+type GitHubEvent = { type: string; created_at: string; repo: { name: string }; payload?: { size?: number; commits?: Array<{ message?: string }> } };
+type GitHubViewer = { login: string; name: string | null; avatar_url: string | null; public_repos: number; total_private_repos: number; followers: number; following: number };
+type GitHubResponse<T> = { body: T; link: string | null };
 
-export interface GitHubIntelligence {
-  totalRepos: number;
-  publicRepos: number;
-  followers: number;
-  following: number;
-  stars: number;
-  forks: number;
-  totalCommits: number;
-  languages: Map<string, number>;
-  topLanguage: string | null;
-  contributionStreak: number;
-  longestStreak: number;
-  mostActiveRepos: Array<{ repo: string; commits: number }>;
-  codingConsistency: number | null;
-  openSourceScore: number | null;
-  lastSyncedAt: Date;
+export interface GitHubIntelligence { totalRepos: number; publicRepos: number; followers: number; following: number; stars: number; forks: number; totalCommits: number; languages: Map<string, number>; topLanguage: string | null; contributionStreak: number; longestStreak: number; mostActiveRepos: Array<{ repo: string; commits: number }>; codingConsistency: number | null; openSourceScore: number | null; activityCalendar: Array<{ day: string; count: number; repos: Array<{ name: string; commits: string[] }> }>; lastSyncedAt: Date }
+
+const MAX_REPOS_PER_DAY = 6;
+const MAX_COMMITS_PER_REPO = 3;
+const MAX_COMMIT_MESSAGE = 120;
+
+function getActivityCalendar(
+  events: GitHubEvent[],
+): Array<{ day: string; count: number; repos: Array<{ name: string; commits: string[] }> }> {
+  const byDay = new Map<string, { count: number; repos: Map<string, string[]> }>();
+  for (const event of events) {
+    if (event.type !== "PushEvent") continue;
+    const day = event.created_at.slice(0, 10);
+    const entry = byDay.get(day) ?? { count: 0, repos: new Map<string, string[]>() };
+    entry.count += event.payload?.size ?? 1;
+    const repoName = event.repo.name;
+    if (!entry.repos.has(repoName) && entry.repos.size < MAX_REPOS_PER_DAY) {
+      entry.repos.set(repoName, []);
+    }
+    const messages = entry.repos.get(repoName);
+    if (messages && messages.length < MAX_COMMITS_PER_REPO) {
+      for (const commit of event.payload?.commits ?? []) {
+        if (messages.length >= MAX_COMMITS_PER_REPO) break;
+        const firstLine = (commit.message ?? "").split("\n")[0].trim().slice(0, MAX_COMMIT_MESSAGE);
+        if (firstLine.length > 0) messages.push(firstLine);
+      }
+    }
+    byDay.set(day, entry);
+  }
+  return [...byDay.entries()]
+    .sort()
+    .map(([day, entry]) => ({
+      day,
+      count: entry.count,
+      repos: [...entry.repos.entries()].map(([name, commits]) => ({ name, commits })),
+    }));
 }
 
 const GITHUB_API = "https://api.github.com";
+const API_VERSION = "2022-11-28";
 
-async function githubRequest<T>(path: string, token: string): Promise<T> {
-  const response = await fetch(`${GITHUB_API}${path}`, {
-    headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" },
-  });
-  if (response.status === 401) throw ApiError.unauthorized("Your GitHub connection has expired. Please sign in with GitHub again.");
+async function githubRequest<T>(pathOrUrl: string, token: string): Promise<GitHubResponse<T>> {
+  const url = pathOrUrl.startsWith("http") ? pathOrUrl : `${GITHUB_API}${pathOrUrl}`;
+  const response = await fetch(url, { headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": API_VERSION } });
+  if (response.status === 401) throw ApiError.unauthorized("Your GitHub connection has expired. Sign in with GitHub again.");
   if (response.status === 403) throw ApiError.tooManyRequests("GitHub API rate limit reached. Please try again later.");
-  if (!response.ok) throw ApiError.internal("Unable to retrieve GitHub activity.");
-  return response.json() as Promise<T>;
-}
-
-function getStreaks(events: GitHubEvent[]): { current: number; longest: number; consistency: number | null } {
-  const days = new Set(events.filter((event) => event.type === "PushEvent").map((event) => event.created_at.slice(0, 10)));
-  if (!days.size) return { current: 0, longest: 0, consistency: null };
-  const ordered = [...days].sort().reverse();
-  let current = 0;
-  let longest = 0;
-  let running = 0;
-  let previous: Date | null = null;
-  for (const dateString of ordered) {
-    const date = new Date(`${dateString}T00:00:00Z`);
-    if (previous && (previous.getTime() - date.getTime()) / 86400000 === 1) running += 1;
-    else running = 1;
-    longest = Math.max(longest, running);
-    previous = date;
+  if (!response.ok) {
+    const details = await response.json().catch(() => null) as { message?: string } | null;
+    throw ApiError.badRequest(`GitHub API request failed: ${details?.message ?? response.statusText}`);
   }
-  const today = new Date(); today.setUTCHours(0, 0, 0, 0);
-  let cursor = today;
-  while (days.has(cursor.toISOString().slice(0, 10))) { current += 1; cursor = new Date(cursor.getTime() - 86400000); }
-  return { current, longest, consistency: Math.round((days.size / 90) * 100) };
+  return { body: await response.json() as T, link: response.headers.get("link") };
 }
+function nextLink(link: string | null) { return link?.split(",").map((part) => part.trim()).find((part) => part.endsWith('rel="next"'))?.match(/<([^>]+)>/)?.[1] ?? null; }
+function lastPage(link: string | null) { const url = link?.split(",").map((part) => part.trim()).find((part) => part.endsWith('rel="last"'))?.match(/<([^>]+)>/)?.[1]; return url ? Number(new URL(url).searchParams.get("page") ?? "1") : null; }
+async function getAllPages<T>(path: string, token: string): Promise<T[]> { const result: T[] = []; let next: string | null = path; while (next) { const response = await githubRequest<T[]>(next, token); result.push(...response.body); next = nextLink(response.link); } return result; }
+async function commitCount(repo: GitHubRepo, login: string, token: string) { const response = await githubRequest<unknown[]>(`/repos/${encodeURIComponent(repo.owner.login)}/${encodeURIComponent(repo.name)}/commits?author=${encodeURIComponent(login)}&per_page=1`, token); if (response.body.length === 0) return 0; return lastPage(response.link) ?? 1; }
+async function inBatches<T, R>(items: T[], batchSize: number, task: (item: T) => Promise<R>) { const output: R[] = []; for (let index = 0; index < items.length; index += batchSize) output.push(...await Promise.all(items.slice(index, index + batchSize).map(task))); return output; }
+function isSkippableRepositoryError(error: unknown) { return isApiError(error) && (error.statusCode === 404 || (error.statusCode === 400 && /Git Repository is empty/i.test(error.message))); }
+function getStreaks(events: GitHubEvent[]) { const days = new Set(events.filter((event) => event.type === "PushEvent").map((event) => event.created_at.slice(0, 10))); if (!days.size) return { current: 0, longest: 0, consistency: null as number | null }; const ordered = [...days].sort().reverse(); let longest = 0; let running = 0; let previous: Date | null = null; for (const day of ordered) { const date = new Date(`${day}T00:00:00Z`); running = previous && (previous.getTime() - date.getTime()) / 86400000 === 1 ? running + 1 : 1; longest = Math.max(longest, running); previous = date; } let current = 0; let cursor = new Date(); cursor.setUTCHours(0, 0, 0, 0); while (days.has(cursor.toISOString().slice(0, 10))) { current += 1; cursor = new Date(cursor.getTime() - 86400000); } return { current, longest, consistency: Math.round(days.size / 90 * 100) }; }
 
 export async function collectGitHubIntelligence(user: IUser): Promise<GitHubIntelligence> {
   if (user.provider !== "github" || !user.accessToken) throw ApiError.badRequest("GitHub analysis requires a GitHub-connected account. Sign in with GitHub to analyse your developer profile.");
-  const [viewer, repos, events] = await Promise.all([
-    githubRequest<GitHubViewer>("/user", user.accessToken),
-    githubRequest<GitHubRepo[]>("/user/repos?per_page=100&sort=updated", user.accessToken),
-    githubRequest<GitHubEvent[]>("/users/" + encodeURIComponent(user.userName) + "/events/public?per_page=100", user.accessToken),
+  const viewerResponse = await githubRequest<GitHubViewer>("/user", user.accessToken);
+  const viewer = viewerResponse.body;
+  const [repos, events] = await Promise.all([
+    // GitHub treats `visibility` and `affiliation` as alternative filters.
+    // The affiliation default covers all repositories available to this token.
+    getAllPages<GitHubRepo>("/user/repos?affiliation=owner,collaborator,organization_member&per_page=100&sort=updated", user.accessToken),
+    getAllPages<GitHubEvent>(`/users/${encodeURIComponent(viewer.login)}/events/public?per_page=100`, user.accessToken),
   ]);
-  const nonForkRepos = repos.filter((repo) => !repo.fork);
+  const ownedRepos = repos.filter((repo) => !repo.fork && repo.owner.login.toLowerCase() === viewer.login.toLowerCase());
   const languages = new Map<string, number>();
-  await Promise.all(nonForkRepos.slice(0, 50).map(async (repo) => {
-    const repoLanguages = await githubRequest<Record<string, number>>(`/repos/${encodeURIComponent(viewer.login)}/${encodeURIComponent(repo.name)}/languages`, user.accessToken!);
-    for (const [name, bytes] of Object.entries(repoLanguages)) languages.set(name, (languages.get(name) ?? 0) + bytes);
-  }));
+  await inBatches(ownedRepos, 5, async (repo) => {
+    try {
+      const response = await githubRequest<Record<string, number>>(`/repos/${encodeURIComponent(repo.owner.login)}/${encodeURIComponent(repo.name)}/languages`, user.accessToken!);
+      for (const [name, bytes] of Object.entries(response.body)) languages.set(name, (languages.get(name) ?? 0) + bytes);
+    } catch (error) {
+      if (!isSkippableRepositoryError(error)) throw error;
+    }
+  });
+  const commitEntries = await inBatches(ownedRepos, 4, async (repo) => {
+    try { return { repo: repo.name, commits: await commitCount(repo, viewer.login, user.accessToken!) }; }
+    catch (error) { if (isSkippableRepositoryError(error)) return { repo: repo.name, commits: 0 }; throw error; }
+  });
   const sortedLanguages = [...languages.entries()].sort(([, left], [, right]) => right - left);
   const streaks = getStreaks(events);
-  const pushEvents = events.filter((event) => event.type === "PushEvent");
-  const commitsByRepo = new Map<string, number>();
-  for (const event of pushEvents) {
-    const repoName = event.repo.name.replace(`${viewer.login}/`, "");
-    commitsByRepo.set(repoName, (commitsByRepo.get(repoName) ?? 0) + (event.payload?.size ?? 1));
-  }
-  const now = new Date();
-  return {
-    totalRepos: viewer.public_repos,
-    publicRepos: viewer.public_repos,
-    followers: viewer.followers,
-    following: viewer.following,
-    stars: nonForkRepos.reduce((total, repo) => total + repo.stargazers_count, 0),
-    forks: nonForkRepos.reduce((total, repo) => total + repo.forks_count, 0),
-    totalCommits: pushEvents.reduce((total, event) => total + (event.payload?.size ?? 1), 0),
-    languages,
-    topLanguage: sortedLanguages[0]?.[0] ?? null,
-    contributionStreak: streaks.current,
-    longestStreak: streaks.longest,
-    mostActiveRepos: [...commitsByRepo.entries()].sort(([, left], [, right]) => right - left).slice(0, 5).map(([repo, commits]) => ({ repo, commits })),
-    codingConsistency: streaks.consistency,
-    openSourceScore: Math.min(100, Math.round(nonForkRepos.length * 3 + Math.min(40, viewer.followers) + Math.min(30, nonForkRepos.reduce((total, repo) => total + repo.stargazers_count, 0)))),
-    lastSyncedAt: now,
-  };
+  const stars = ownedRepos.reduce((total, repo) => total + repo.stargazers_count, 0);
+  return { totalRepos: repos.length, publicRepos: viewer.public_repos, followers: viewer.followers, following: viewer.following, stars, forks: ownedRepos.reduce((total, repo) => total + repo.forks_count, 0), totalCommits: commitEntries.reduce((total, entry) => total + entry.commits, 0), languages, topLanguage: sortedLanguages[0]?.[0] ?? null, contributionStreak: streaks.current, longestStreak: streaks.longest, mostActiveRepos: commitEntries.sort((left, right) => right.commits - left.commits).slice(0, 5), codingConsistency: streaks.consistency, openSourceScore: Math.min(100, Math.round(ownedRepos.length * 3 + Math.min(40, viewer.followers) + Math.min(30, stars))), activityCalendar: getActivityCalendar(events), lastSyncedAt: new Date() };
 }
+
+export async function syncGitHubUser(userId: string) { const user = await User.findById(userId); if (!user) throw ApiError.unauthorized(); const stats = await collectGitHubIntelligence(user); user.userName = (await githubRequest<GitHubViewer>("/user", user.accessToken!)).body.login; user.githubStats = stats; await user.save(); return user; }

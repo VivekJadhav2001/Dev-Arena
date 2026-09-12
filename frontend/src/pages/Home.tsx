@@ -9,9 +9,7 @@ type User = {
   avatarUrl: string
 }
 
-type Props = {}
-
-function Home({}: Props) {
+function Home() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -36,7 +34,7 @@ function Home({}: Props) {
   }
 
   async function handleLogout() {
-    let logout = await fetch(`${BACKEND_URL}/auth/logout`, {
+    const logout = await fetch(`${BACKEND_URL}/auth/logout`, {
       method: "POST",
       credentials: "include",
     })
@@ -45,7 +43,9 @@ function Home({}: Props) {
   }
 
   useEffect(() => {
-    getCurrentUser()
+    // Session fetch resolves asynchronously before calling setState.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void getCurrentUser()
   }, [])
 
   if (loading) {

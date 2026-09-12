@@ -1,6 +1,7 @@
 import passport from "passport";
 import { requireAuth } from "../middlewares/auth.middleware.js";
 import { getCurrentUser, logout } from "../controllers/auth.controller.js";
+import { syncGitHubUser } from "../services/github.service.js";
 import express from "express"
 const router = express.Router();
 
@@ -53,7 +54,7 @@ router.get(
     "/github",
     passport.authenticate("github",
         {
-            scope:["read:user", "user:email"]
+            scope:["read:user", "user:email", "repo"]
         }
     )
 )
@@ -71,8 +72,13 @@ router.get(
             failureRedirect:"/api/v1/auth/login-failed"
         }
     ),
-    (_req,res)=>{
-        res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
+    async (req,res,next)=>{
+        try {
+          await syncGitHubUser(req.user!.id);
+          res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
+        } catch (error) {
+          next(error);
+        }
     }
 )
 

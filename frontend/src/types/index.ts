@@ -32,6 +32,7 @@ export interface IGitHubStats {
   mostActiveRepos: Array<{ repo: string; commits: number }>;
   codingConsistency: number | null;
   openSourceScore: number | null;
+  activityCalendar: Array<{ day: string; count: number; repos: Array<{ name: string; commits: string[] }> }>;
   lastSyncedAt: string | null;
 }
 
@@ -46,6 +47,52 @@ export interface IBattleStats {
   favoriteLanguage: string | null;
 }
 
+export interface ILeetCodeLanguage {
+  name: string;
+  solved: number;
+}
+
+export interface ILeetCodeSkillTag {
+  name: string;
+  solved: number;
+  level: 'advanced' | 'intermediate' | 'fundamental';
+}
+
+export interface ILeetCodeBadge {
+  name: string;
+  icon: string | null;
+  earnedAt: string | null;
+}
+
+export interface ILeetCodeRecentSolve {
+  title: string;
+  titleSlug: string;
+  timestamp: number;
+  lang: string;
+}
+
+export interface ILeetCodeStats {
+  username: string | null;
+  ranking: number | null;
+  totalSolved: number;
+  easySolved: number;
+  mediumSolved: number;
+  hardSolved: number;
+  contestRating: number | null;
+  contestGlobalRanking: number | null;
+  contestsAttended: number;
+  contestTopPercentage: number | null;
+  contestBadge: string | null;
+  languages: ILeetCodeLanguage[];
+  skillTags: ILeetCodeSkillTag[];
+  badges: ILeetCodeBadge[];
+  recentSolved: ILeetCodeRecentSolve[];
+  dailySolved: Array<{ day: string; count: number; problems: Array<{ title: string; titleSlug: string; lang: string }> }>;
+  totalActiveDays: number;
+  streak: number;
+  lastSyncedAt: string | null;
+}
+
 export interface IBadgeEntry {
   badgeId: string;
   earnedAt: string;
@@ -57,15 +104,7 @@ export interface ISettings {
   showEmail: boolean;
   notifications: boolean;
   theme: 'dark' | 'light' | 'system';
-}
-
-export interface INearbyLocation {
-  optedIn: boolean;
-  approximateCity: string | null;
-  approximateRegion: string | null;
-  countryCode: string | null;
-  geohash: string | null;
-  updatedAt: string | null;
+  allowChallenges: boolean;
 }
 
 export interface IUser {
@@ -88,7 +127,9 @@ export interface IUser {
   battleStats: IBattleStats;
   badges: IBadgeEntry[];
   settings: ISettings;
-  nearbyLocation: INearbyLocation;
+  leetcodeUsername: string | null;
+  leetcodeStats: ILeetCodeStats;
+  presence: { isOnline: boolean };
   lastActiveAt: string;
   joinedAt: string;
 }
@@ -179,7 +220,7 @@ export interface IBattleRoomState {
   battleId: string;
   roomCode: string;
   status: BattleStatus;
-  mode: '1v1' | 'tournament';
+  mode: '1v1' | 'royale';
   difficulty: Difficulty;
   language: string | null;
   timeLimit: number;
@@ -231,44 +272,35 @@ export interface ILeaderboardEntry {
   isCurrentUser: boolean;
 }
 
-export interface IWrappedSlideData {
-  title: string;
-  subtitle: string;
-  value: string;
-  detail: string;
-  icon: string;
-  gradient: string;
-}
+export type ChallengeStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
 
-export interface IWrappedData {
-  season: string;
-  slides: IWrappedSlideData[];
-  githubStats: IGitHubStats;
-  persona: Persona;
-  battleStats: IBattleStats;
-  languageStats: ILanguageStat[];
-  topRepositories: Array<{ name: string; description: string; stars: number; commits: number }>;
-  streakDays: number;
-  identity: {
-    title: string;
-    subtitle: string;
-    level: number;
-    xp: number;
-    avatarUrl: string | null;
-    userName: string;
-  };
-}
-
-export interface INearbyDeveloper {
-  username: string;
+export interface IChallengeUser {
+  id: string;
+  userName: string;
   avatarUrl: string | null;
   persona: Persona | null;
   level: number;
-  xp: number;
-  distanceText: string;
-  approximateCity: string | null;
-  lastActiveMinutes: number;
-  tags: string[];
+}
+
+export interface IChallenge {
+  id: string;
+  challengerId: string;
+  challengedId: string;
+  challenger?: IChallengeUser;
+  challenged?: IChallengeUser;
+  status: ChallengeStatus;
+  battleId: string | null;
+  settings: { difficulty: Difficulty; language: string | null; timeLimit: number };
+  message: string | null;
+  expiresAt: string;
+  respondedAt: string | null;
+  createdAt: string | null;
+}
+
+export interface IChallengeAccepted {
+  challengeId: string;
+  battleId: string;
+  roomCode: string;
 }
 
 export interface IApiError {

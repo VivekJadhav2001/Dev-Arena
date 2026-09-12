@@ -23,16 +23,31 @@ api.interceptors.response.use(
 )
 
 export async function apiRequest<T>(
-  method: 'get' | 'post' | 'patch' | 'delete',
+  method: 'get' | 'post' | 'put' | 'patch' | 'delete',
   url: string,
   data?: unknown,
   config?: AxiosRequestConfig,
 ): Promise<T> {
-  const response = await api.request<T>({
-    method,
-    url,
-    data,
-    ...config,
-  })
-  return response.data as T
+  try {
+    const response = await api.request<T>({
+      method,
+      url,
+      data,
+      ...config,
+    })
+    return response.data as T
+  } catch (error: unknown) {
+    // Surface the server's message (e.g. "Developer not found") instead of
+    // axios's generic "Request failed with status code …".
+    if (axios.isAxiosError(error)) {
+      const serverMessage = (error.response?.data as { message?: unknown } | undefined)?.message
+      const status = error.response?.status
+      if (typeof serverMessage === 'string' && serverMessage.length > 0) {
+        const enriched = new Error(serverMessage)
+        ;(enriched as Error & { status?: number }).status = status
+        throw enriched
+      }
+    }
+    throw error
+  }
 }
