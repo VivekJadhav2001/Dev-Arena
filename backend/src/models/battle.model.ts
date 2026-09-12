@@ -1,8 +1,10 @@
 import mongoose from "mongoose";
 import {
+  BATTLE_MODES,
   BATTLE_STATUSES,
   DIFFICULTIES,
   QUESTION_TYPES,
+  type BattleMode,
   type BattleStatus,
   type Difficulty,
 } from "../utils/constants.js";
@@ -21,6 +23,8 @@ export interface IBattlePlayer {
 export interface IBattle {
   roomCode: string;
   hostId: mongoose.Types.ObjectId;
+  mode: BattleMode;
+  maxPlayers: number;
   players: IBattlePlayer[];
   status: BattleStatus;
   difficulty: Difficulty;
@@ -87,6 +91,8 @@ const battleSchema = new mongoose.Schema<IBattle>(
       ref: "User",
       required: true,
     },
+    mode: { type: String, enum: BATTLE_MODES, default: "1v1" },
+    maxPlayers: { type: Number, default: 2, min: 2, max: 8 },
     players: { type: [playerSchema], default: [] },
     status: { type: String, enum: BATTLE_STATUSES, default: "waiting" },
     difficulty: { type: String, enum: DIFFICULTIES, required: true },

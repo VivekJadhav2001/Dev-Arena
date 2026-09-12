@@ -83,6 +83,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   50% { opacity: 0.5; }
 }
 
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
 .animate-float { animation: float 6s ease-in-out infinite; }
 .animate-shimmer {
   background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
@@ -91,3 +96,4 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .animate-spin-slow { animation: spin-slow 24s linear infinite; }
 .animate-pulse-soft { animation: pulse-soft 2.5s ease-in-out infinite; }
+.animate-marquee { animation: marquee 28s linear infinite; }

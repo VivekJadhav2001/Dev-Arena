@@ -1,4 +1,6 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import type { IBadgeEntry, IBattleStats, IGitHubStats, ILeetCodeStats, ISettings } from '../../types'
 
 export interface IAuthUser {
   id: string
@@ -11,10 +13,12 @@ export interface IAuthUser {
   xp: number
   totalXp: number
   rank: number
-  githubStats: any
-  battleStats: any
-  badges: any[]
-  settings: any
+  githubStats: IGitHubStats | null
+  battleStats: IBattleStats | null
+  badges: IBadgeEntry[]
+  settings: ISettings | null
+  leetcodeUsername: string | null
+  leetcodeStats: ILeetCodeStats | null
   lastActiveAt: string
   joinedAt: string
 }

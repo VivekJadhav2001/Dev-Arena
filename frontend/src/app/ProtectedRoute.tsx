@@ -1,8 +1,9 @@
-import { Navigate, useRouteError } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
+  const location = useLocation()
 
   if (loading) {
     return <div className="page-loading">
@@ -12,9 +13,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    const error = useRouteError()
-    const from = error instanceof Error ? '/' : '/'
-    return <Navigate to="/auth/login" replace state={{ from }} />
+    return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />
   }
 
   return children

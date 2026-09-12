@@ -21,7 +21,9 @@ export function toPublicUser(user: IUser & { _id: { toString(): string } }) {
     battleStats: user.battleStats,
     badges: user.badges,
     settings: user.settings,
-    nearbyLocation: user.nearbyLocation,
+    leetcodeUsername: user.leetcodeUsername ?? null,
+    leetcodeStats: user.leetcodeStats,
+    presence: user.presence ? { isOnline: user.presence.isOnline } : { isOnline: false },
     lastActiveAt: user.lastActiveAt,
     joinedAt: user.joinedAt,
   };

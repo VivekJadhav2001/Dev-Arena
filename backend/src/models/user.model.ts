@@ -16,6 +16,16 @@ export interface IGitHubStats {
   mostActiveRepos: Array<{ repo: string; commits: number }>;
   codingConsistency: number | null;
   openSourceScore: number | null;
+  /**
+   * Per-day pushed commits (YYYY-MM-DD), built from recent public events.
+   * `repos` names which repositories moved that day with sample messages,
+   * so heatmap hovers can show what each day is responsible for.
+   */
+  activityCalendar: Array<{
+    day: string;
+    count: number;
+    repos: Array<{ name: string; commits: string[] }>;
+  }>;
   lastSyncedAt: Date | null;
 }
 
@@ -36,20 +46,73 @@ export interface IBadgeEntry {
   tier: BadgeTier;
 }
 
+export interface ILeetCodeLanguage {
+  name: string;
+  solved: number;
+}
+
+export interface ILeetCodeSkillTag {
+  name: string;
+  solved: number;
+  level: "advanced" | "intermediate" | "fundamental";
+}
+
+export interface ILeetCodeBadge {
+  name: string;
+  icon: string | null;
+  earnedAt: string | null;
+}
+
+export interface ILeetCodeRecentSolve {
+  title: string;
+  titleSlug: string;
+  timestamp: number;
+  lang: string;
+}
+
+export interface ILeetCodeStats {
+  username: string | null;
+  ranking: number | null;
+  totalSolved: number;
+  easySolved: number;
+  mediumSolved: number;
+  hardSolved: number;
+  contestRating: number | null;
+  contestGlobalRanking: number | null;
+  contestsAttended: number;
+  contestTopPercentage: number | null;
+  contestBadge: string | null;
+  languages: ILeetCodeLanguage[];
+  skillTags: ILeetCodeSkillTag[];
+  badges: ILeetCodeBadge[];
+  recentSolved: ILeetCodeRecentSolve[];
+  /**
+   * Per-day accepted submissions (YYYY-MM-DD), trimmed to the last 365 days.
+   * `problems` holds known titles (from recent submissions) so heatmap
+   * hovers can show what each day is responsible for.
+   */
+  dailySolved: Array<{
+    day: string;
+    count: number;
+    problems: Array<{ title: string; titleSlug: string; lang: string }>;
+  }>;
+  totalActiveDays: number;
+  streak: number;
+  lastSyncedAt: Date | null;
+}
+
 export interface ISettings {
   publicProfile: boolean;
   showEmail: boolean;
   notifications: boolean;
   theme: "dark" | "light" | "system";
+  allowChallenges: boolean;
 }
 
-export interface INearbyLocation {
-  optedIn: boolean;
-  approximateCity: string | null;
-  approximateRegion: string | null;
-  countryCode: string | null;
-  geohash: string | null;
-  updatedAt: Date | null;
+export interface IPresence {
+  isOnline: boolean;
+  lastSeenAt: Date | null;
+  socketConnectedAt: Date | null;
 }
 
 export interface IUser {
@@ -74,7 +137,9 @@ export interface IUser {
   battleStats: IBattleStats;
   badges: IBadgeEntry[];
   settings: ISettings;
-  nearbyLocation: INearbyLocation;
+  leetcodeUsername: string | null;
+  leetcodeStats: ILeetCodeStats;
+  presence: IPresence;
   lastActiveAt: Date;
   joinedAt: Date;
 }
@@ -100,6 +165,18 @@ const githubStatsSchema = new mongoose.Schema<IGitHubStats>(
     ],
     codingConsistency: { type: Number, default: null },
     openSourceScore: { type: Number, default: null },
+    activityCalendar: [
+      {
+        day: { type: String, required: true },
+        count: { type: Number, required: true },
+        repos: [
+          {
+            name: { type: String, required: true },
+            commits: { type: [String], default: [] },
+          },
+        ],
+      },
+    ],
     lastSyncedAt: { type: Date, default: null },
   },
   { _id: false }
@@ -134,18 +211,77 @@ const settingsSchema = new mongoose.Schema<ISettings>(
     showEmail: { type: Boolean, default: false },
     notifications: { type: Boolean, default: true },
     theme: { type: String, enum: ["dark", "light", "system"], default: "dark" },
+    allowChallenges: { type: Boolean, default: true },
   },
   { _id: false }
 );
 
-const nearbyLocationSchema = new mongoose.Schema<INearbyLocation>(
+const leetcodeStatsSchema = new mongoose.Schema<ILeetCodeStats>(
   {
-    optedIn: { type: Boolean, default: false },
-    approximateCity: { type: String, default: null },
-    approximateRegion: { type: String, default: null },
-    countryCode: { type: String, default: null },
-    geohash: { type: String, default: null },
-    updatedAt: { type: Date, default: null },
+    username: { type: String, default: null },
+    ranking: { type: Number, default: null },
+    totalSolved: { type: Number, default: 0 },
+    easySolved: { type: Number, default: 0 },
+    mediumSolved: { type: Number, default: 0 },
+    hardSolved: { type: Number, default: 0 },
+    contestRating: { type: Number, default: null },
+    contestGlobalRanking: { type: Number, default: null },
+    contestsAttended: { type: Number, default: 0 },
+    contestTopPercentage: { type: Number, default: null },
+    contestBadge: { type: String, default: null },
+    languages: [
+      {
+        name: { type: String, required: true },
+        solved: { type: Number, required: true },
+      },
+    ],
+    skillTags: [
+      {
+        name: { type: String, required: true },
+        solved: { type: Number, required: true },
+        level: { type: String, enum: ["advanced", "intermediate", "fundamental"], required: true },
+      },
+    ],
+    badges: [
+      {
+        name: { type: String, required: true },
+        icon: { type: String, default: null },
+        earnedAt: { type: String, default: null },
+      },
+    ],
+    recentSolved: [
+      {
+        title: { type: String, required: true },
+        titleSlug: { type: String, required: true },
+        timestamp: { type: Number, required: true },
+        lang: { type: String, required: true },
+      },
+    ],
+    dailySolved: [
+      {
+        day: { type: String, required: true },
+        count: { type: Number, required: true },
+        problems: [
+          {
+            title: { type: String, required: true },
+            titleSlug: { type: String, required: true },
+            lang: { type: String, required: true },
+          },
+        ],
+      },
+    ],
+    totalActiveDays: { type: Number, default: 0 },
+    streak: { type: Number, default: 0 },
+    lastSyncedAt: { type: Date, default: null },
+  },
+  { _id: false }
+);
+
+const presenceSchema = new mongoose.Schema<IPresence>(
+  {
+    isOnline: { type: Boolean, default: false },
+    lastSeenAt: { type: Date, default: null },
+    socketConnectedAt: { type: Date, default: null },
   },
   { _id: false }
 );
@@ -254,8 +390,19 @@ const userSchema = new mongoose.Schema<IUser>(
       default: () => ({}),
     },
 
-    nearbyLocation: {
-      type: nearbyLocationSchema,
+    leetcodeUsername: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    leetcodeStats: {
+      type: leetcodeStatsSchema,
+      default: () => ({}),
+    },
+
+    presence: {
+      type: presenceSchema,
       default: () => ({}),
     },
 
@@ -275,6 +422,6 @@ const userSchema = new mongoose.Schema<IUser>(
 userSchema.index({ "githubStats.totalCommits": -1 });
 userSchema.index({ xp: -1, level: -1 });
 userSchema.index({ "battleStats.wins": -1 });
-userSchema.index({ "nearbyLocation.geohash": 1 });
+userSchema.index({ "presence.isOnline": 1 });
 
 export const User = mongoose.model<IUser>("User", userSchema);
