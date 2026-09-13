@@ -114,6 +114,7 @@ export default function ArenaLobby() {
   const navigate = useNavigate()
   const [difficulty, setDifficulty] = useState<Difficulty>('easy')
   const [language, setLanguage] = useState('JavaScript')
+  const [timeLimit, setTimeLimit] = useState(300)
   const [mode, setMode] = useState<BattleMode>('1v1')
   const [maxPlayers, setMaxPlayers] = useState(4)
   const [roomCode, setRoomCode] = useState('')
@@ -148,7 +149,7 @@ export default function ArenaLobby() {
       const room = await arenaService.createBattle({
         difficulty,
         language,
-        timeLimit: 60,
+        timeLimit,
         mode,
         ...(mode === 'royale' ? { maxPlayers } : {}),
       })
@@ -277,6 +278,22 @@ export default function ArenaLobby() {
               ))}
             </select>
           )}
+
+          <label className="mt-3 block text-xs font-bold uppercase tracking-wider text-textMuted">
+            Battle clock
+          </label>
+          <select
+            value={timeLimit}
+            onChange={(e) => setTimeLimit(Number(e.target.value))}
+            className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-3"
+          >
+            <option value={120}>2 minutes — blitz</option>
+            <option value={300}>5 minutes — classic (coding friendly)</option>
+            <option value={600}>10 minutes — marathon</option>
+          </select>
+          <p className="mt-1 text-xs text-textSubtle">
+            Battles now include quiz + 2 coding challenges locked by the host.
+          </p>
 
           <button
             onClick={() => void create()}

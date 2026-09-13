@@ -18,10 +18,14 @@ import userRoutes from "./routes/user.routes.js";
 import dnaRoutes from "./routes/dna.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import arenaRoutes from "./routes/arena.routes.js";
+import leaderboardRoutes from "./routes/leaderboard.routes.js";
+import themeRoutes from "./routes/theme.routes.js";
 import developersRoutes from "./routes/developers.routes.js";
 import challengesRoutes from "./routes/challenges.routes.js";
 import wrappedRoutes from "./routes/wrapped.routes.js";
 import { sweepExpiredChallenges } from "./controllers/challenge.controller.js";
+import { backfillBattleStats } from "./services/battle-stats.service.js";
+import { ensureThemeSeeds } from "./services/theme-seeds.js";
 import { initSockets } from "./sockets/index.js";
 
 const app = express();
@@ -70,6 +74,8 @@ app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/dna", dnaRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/arena", arenaRoutes);
+app.use("/api/v1/leaderboard", leaderboardRoutes);
+app.use("/api/v1/themes", themeRoutes);
 app.use("/api/v1/developers", developersRoutes);
 app.use("/api/v1/challenges", challengesRoutes);
 app.use("/api/v1/wrapped", wrappedRoutes);
@@ -79,6 +85,32 @@ app.use(globalError);
 const httpServer = app.listen(process.env.PORT, () => console.log(`Server is running ${process.env.PORT}`));
 
 initSockets(httpServer, process.env.FRONTEND_URL || "*");
+
+// One-time repair: battles finished before stat persistence existed never
+// wrote xp/battleStats. Replays them (only for never-computed users) so the
+// leaderboard reflects real history from the first request.
+void (async () => {
+  try {
+    const result = await backfillBattleStats();
+    if (result.battles > 0) {
+      console.log(`battle-stats backfill: ${result.users} users from ${result.battles} battles`);
+    }
+  } catch (error) {
+    console.error("battle-stats backfill failed:", error);
+  }
+})();
+
+// Seed the theme gallery (missing-only, so DB edits survive restarts).
+void (async () => {
+  try {
+    const result = await ensureThemeSeeds();
+    if (result.inserted > 0) {
+      console.log(`theme seeds: inserted ${result.inserted} themes (${result.total} total)`);
+    }
+  } catch (error) {
+    console.error("theme seeding failed:", error);
+  }
+})();
 
 // Background sweep: expire pending challenges so offline users don't pile up stale invites.
 setInterval(() => {

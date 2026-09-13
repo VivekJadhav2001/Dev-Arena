@@ -15,7 +15,7 @@ export type BadgeTier = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond';
 export type BadgeCategory = 'battle' | 'streak' | 'social' | 'code' | 'special';
 export type BattleStatus = 'waiting' | 'active' | 'finished' | 'cancelled';
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type QuestionType = 'mcq' | 'code_output' | 'fill_blank' | 'debug';
+export type QuestionType = 'mcq' | 'code_output' | 'fill_blank' | 'debug' | 'coding';
 
 export interface IGitHubStats {
   totalRepos: number;
@@ -104,6 +104,7 @@ export interface ISettings {
   showEmail: boolean;
   notifications: boolean;
   theme: 'dark' | 'light' | 'system';
+  themeId: string;
   allowChallenges: boolean;
 }
 
@@ -205,6 +206,11 @@ export interface IBattleQuestion {
   code: string | null;
   tags: string[];
   xpValue: number;
+  statement: string | null;
+  inputDescription: string | null;
+  outputDescription: string | null;
+  constraints: string[];
+  examples: Array<{ input: string; output: string; explanation?: string | null }>;
 }
 
 export interface IPlayerState {

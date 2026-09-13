@@ -6,8 +6,24 @@
 
 :root {
   font-family: 'Inter', system-ui, sans-serif;
-  color: #e8eaf2;
-  background: #07080d;
+  /* Theme channels ("R G B") — swapped at runtime by the theme store.
+     Midnight defaults; every Tailwind palette color reads these. */
+  --bg: 7 8 13;
+  --surface: 14 16 22;
+  --surface-elevated: 21 24 36;
+  --surface-raised: 27 31 46;
+  --border: 35 39 56;
+  --border-hover: 52 58 82;
+  --text: 232 234 242;
+  --text-muted: 154 161 181;
+  --text-subtle: 93 100 120;
+  --primary: 0 212 170;
+  --secondary: 124 92 255;
+  --accent: 255 92 138;
+  --shadow: 0 0 0;
+  color: rgb(var(--text));
+  background: rgb(var(--bg));
+  color-scheme: dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -19,7 +35,7 @@
 }
 
 html {
-  background: #07080d;
+  background: rgb(var(--bg));
   scroll-behavior: smooth;
 }
 
@@ -28,13 +44,14 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(1200px 600px at 80% -10%, rgba(124, 92, 255, 0.12), transparent 60%),
-    radial-gradient(1000px 500px at 10% 110%, rgba(0, 212, 170, 0.08), transparent 60%),
-    #07080d;
+    radial-gradient(1200px 600px at 80% -10%, rgb(var(--secondary) / 0.12), transparent 60%),
+    radial-gradient(1000px 500px at 10% 110%, rgb(var(--primary) / 0.08), transparent 60%),
+    rgb(var(--bg));
+  transition: background-color 0.25s ease;
 }
 
 ::selection {
-  background: rgba(0, 212, 170, 0.3);
+  background: rgb(var(--primary) / 0.3);
 }
 
 ::-webkit-scrollbar {
@@ -43,16 +60,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0a0c12;
+  background: rgb(var(--bg));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #262b3d;
+  background: rgb(var(--surface-raised));
   border-radius: 8px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #343a52;
+  background: rgb(var(--border-hover));
 }
 
 button, a, input, textarea, select {
@@ -60,7 +77,7 @@ button, a, input, textarea, select {
 }
 
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
-  outline: 2px solid rgba(0, 212, 170, 0.6);
+  outline: 2px solid rgb(var(--primary) / 0.6);
   outline-offset: 2px;
 }
 

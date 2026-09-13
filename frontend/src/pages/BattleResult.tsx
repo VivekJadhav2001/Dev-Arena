@@ -1,4 +1,4 @@
-import { Check, Copy, LoaderCircle, Share2, Trophy } from 'lucide-react'
+import { Check, Code2, Copy, ListChecks, LoaderCircle, Share2, Trophy } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { copyText } from '../lib/clipboard'
@@ -69,6 +69,8 @@ export default function BattleResult() {
     : result.myRank === 1
       ? 'You won.'
       : `${winnerEntry?.username ?? 'Someone'} won.`
+  const stats = result.myStats
+  const breakdown = result.questions ?? []
 
   return (
     <div className="mx-auto max-w-2xl py-10 text-center">
@@ -79,7 +81,7 @@ export default function BattleResult() {
       <h1 className="mt-2 font-display text-5xl font-bold">{headline}</h1>
       <p className="mt-3 text-textMuted">
         {result.mode === 'royale' ? '1-vs-many royale' : '1-vs-1 duel'} · Room {result.roomCode} ·
-        Server-verified multiple choice.
+        Server-verified quiz + coding.
       </p>
 
       {(result.myScore !== undefined || result.myRank !== undefined) && (
@@ -95,6 +97,27 @@ export default function BattleResult() {
           <div className="rounded-xl border border-border bg-surface p-4">
             <b>{result.myAccuracy ?? 0}%</b>
             <small className="block text-textMuted">accuracy</small>
+          </div>
+        </div>
+      )}
+
+      {stats && (
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <b>{stats.mcqCorrect}/{stats.mcqTotal}</b>
+            <small className="block text-textMuted">MCQ correct</small>
+          </div>
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <b>{stats.codingSolved}/{stats.codingTotal}</b>
+            <small className="block text-textMuted">coding solved</small>
+          </div>
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <b>{stats.testsPassed}/{stats.testsTotal}</b>
+            <small className="block text-textMuted">tests passed</small>
+          </div>
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <b>{stats.codingPoints}</b>
+            <small className="block text-textMuted">coding XP ({stats.codingSuccessRate}%)</small>
           </div>
         </div>
       )}
@@ -125,12 +148,88 @@ export default function BattleResult() {
               </p>
               <p className="text-xs text-textMuted">
                 {entry.correct}/{entry.total} correct · {entry.accuracy}% accuracy
+                {(entry.codingTotal ?? 0) > 0 && (
+                  <> · {(entry.codingSolved ?? 0)}/{entry.codingTotal} coding · {(entry.testsPassed ?? 0)}/{entry.testsTotal} tests</>
+                )}
               </p>
             </div>
             <b className="text-primary">{entry.score} XP</b>
           </div>
         ))}
       </div>
+
+      {breakdown.length > 0 && (
+        <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-surface text-left">
+          <p className="border-b border-border px-5 py-3 text-xs font-bold uppercase tracking-wider text-textMuted">
+            Question-by-question
+          </p>
+          {breakdown.map((q, i) => {
+            const mine = q.myAnswer
+            const solved = mine?.isCorrect ?? false
+            return (
+              <div key={q.questionId} className="border-b border-border/50 px-5 py-4 last:border-0">
+                <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-textMuted">
+                  Q{i + 1} · {q.xpValue} XP
+                  <span className="inline-flex items-center gap-1 rounded-full bg-surfaceRaised px-2 py-0.5 normal-case">
+                    {q.type === 'coding' ? <Code2 size={11} /> : <ListChecks size={11} />}
+                    {q.type === 'coding' ? 'coding' : 'quiz'}
+                  </span>
+                </p>
+                <p className="mt-1 font-bold">{q.prompt}</p>
+                {mine ? (
+                  <div className="mt-2 text-sm">
+                    {q.type === 'coding' ? (
+                      <>
+                        <p className={solved ? 'text-primary' : 'text-red-300'}>
+                          {solved ? 'Solved' : 'Not solved'} · {mine.testsPassed}/{mine.testsTotal} tests
+                          {' · '}+{mine.pointsEarned} XP
+                          {mine.language && <span className="text-textMuted"> · {mine.language}</span>}
+                        </p>
+                        {!solved && mine.error && (
+                          <pre className="mt-2 overflow-x-auto rounded-lg bg-danger/10 p-2 font-mono text-xs text-red-200">
+                            {mine.error.slice(0, 500)}
+                          </pre>
+                        )}
+                        {!solved && (mine.testResults ?? []).length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {(mine.testResults ?? []).map((t, ti) => {
+                              const hidden = ti >= q.examples.length
+                              return (
+                                <p key={ti} className={`font-mono text-xs ${t.passed ? 'text-primary' : 'text-red-300'}`}>
+                                  {t.passed ? '✓' : '✗'} {hidden ? `hidden test ${ti - q.examples.length + 1}` : `example ${ti + 1}`}
+                                  {!t.passed && !hidden && (
+                                    <span className="text-textMuted"> · expected {t.expected.slice(0, 80)} · got {(t.actual || '(empty)').slice(0, 80)}</span>
+                                  )}
+                                  {!t.passed && t.error && (
+                                    <span className="text-textMuted"> · {t.error.slice(0, 120)}</span>
+                                  )}
+                                </p>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className={solved ? 'text-primary' : 'text-red-300'}>
+                        {solved ? `Correct (${mine.answer})` : `Wrong (you: ${mine.answer || 'skipped'})`}
+                        {' · '}+{mine.pointsEarned} XP
+                      </p>
+                    )}
+                    {!solved && q.type !== 'coding' && q.correctAnswer && (
+                      <p className="mt-1 text-xs text-textMuted">Answer: {q.correctAnswer}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-textSubtle">
+                    No record{q.type !== 'coding' && q.correctAnswer ? ` · answer: ${q.correctAnswer}` : ''}.
+                    Sign in as a participant to see your attempt.
+                  </p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <div className="mt-6 flex flex-wrap justify-center gap-2">
         <button

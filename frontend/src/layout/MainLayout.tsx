@@ -7,12 +7,14 @@ import {
   Sparkles,
   UserRound,
   Inbox,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ChallengeNotifications } from "../components/challenges/ChallengeNotifications";
 import { LeetCodeUsernameModal } from "../components/leetcode/LeetCodeUsernameModal";
 import { useAppStore } from "../store/app.store";
 import { useAuthStore } from "../store/auth.store";
+import { useThemeStore } from "../store/theme.store";
 
 const navItems = [
   { to: "/dashboard", label: "My proof", icon: BarChart3 },
@@ -35,6 +37,13 @@ export function MainLayout() {
   useEffect(() => {
     if (user) void bootstrap(user.id);
   }, [user, bootstrap]);
+  // Theme gallery loads once; the saved user theme wins over local state.
+  useEffect(() => {
+    void useThemeStore.getState().loadThemes();
+  }, []);
+  useEffect(() => {
+    if (user) useThemeStore.getState().syncWithUser(user.settings?.themeId);
+  }, [user]);
   // Auto-prompt for the LeetCode username once per session when it is missing.
   const [leetcodeDismissed, setLeetcodeDismissed] = useState(false);
   const showLeetCodePrompt = !loading && !!user && !user.leetcodeUsername && !leetcodeDismissed;
@@ -79,6 +88,16 @@ export function MainLayout() {
               </span>
             )}
             <span className="hidden sm:block">Level {user?.level ?? '–'}</span>
+          </NavLink>
+          <NavLink
+            to="/settings"
+            title="Settings"
+            aria-label="Settings"
+            className={({ isActive }) =>
+              `grid h-9 w-9 place-items-center rounded-xl border transition ${isActive ? "border-primary/60 bg-primary/10 text-primary" : "border-border bg-surface text-textMuted hover:border-borderHover hover:text-text"}`
+            }
+          >
+            <SettingsIcon size={17} />
           </NavLink>
         </div>
         <nav className="flex gap-1 overflow-x-auto border-t border-border px-3 py-2 md:hidden">

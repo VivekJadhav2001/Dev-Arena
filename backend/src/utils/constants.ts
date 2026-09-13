@@ -30,8 +30,12 @@ export const MAX_ROYALE_PLAYERS = 8;
 export const DIFFICULTIES = ["easy", "medium", "hard"] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
-export const QUESTION_TYPES = ["mcq", "code_output", "fill_blank", "debug"] as const;
+export const QUESTION_TYPES = ["mcq", "code_output", "fill_blank", "debug", "coding"] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
+
+/** Languages supported for machine-coding execution (Piston runtimes). */
+export const CODING_LANGUAGES = ["python", "javascript", "typescript", "java", "go", "rust"] as const;
+export type CodingLanguage = (typeof CODING_LANGUAGES)[number];
 
 export const XP_SOURCES = [
   "battle_win",

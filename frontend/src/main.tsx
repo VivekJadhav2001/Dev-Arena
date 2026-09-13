@@ -7,6 +7,10 @@ import { Suspense, lazy } from 'react'
 import routes from './app/routes'
 import { AuthProvider } from './app/providers/AuthProvider'
 import { SocketProvider } from './app/providers/SocketProvider'
+import { paintBootTheme } from './store/theme.store'
+
+// Paint the stored theme before first render to avoid a theme flash.
+paintBootTheme()
 
 // Code-split: three.js stays out of the initial bundle.
 const ParticleBackground = lazy(() =>
