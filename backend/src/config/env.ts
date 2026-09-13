@@ -15,6 +15,7 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GOOGLE_CALLBACK_URL: z.string().url(),
   GITHUB_API_TOKEN: z.string().optional(),
+  JUDGE0_API_URL: z.string().url().default("https://ce.judge0.com"),
   REDIS_URL: z.string().url().optional(),
   JWT_SECRET: z.string().min(32).optional(),
   ENCRYPTION_KEY: z.string().length(32).optional(),

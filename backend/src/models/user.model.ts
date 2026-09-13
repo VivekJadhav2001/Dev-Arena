@@ -106,6 +106,7 @@ export interface ISettings {
   showEmail: boolean;
   notifications: boolean;
   theme: "dark" | "light" | "system";
+  themeId: string;
   allowChallenges: boolean;
 }
 
@@ -211,6 +212,7 @@ const settingsSchema = new mongoose.Schema<ISettings>(
     showEmail: { type: Boolean, default: false },
     notifications: { type: Boolean, default: true },
     theme: { type: String, enum: ["dark", "light", "system"], default: "dark" },
+    themeId: { type: String, default: "midnight" },
     allowChallenges: { type: Boolean, default: true },
   },
   { _id: false }

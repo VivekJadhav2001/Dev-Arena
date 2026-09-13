@@ -1,5 +1,11 @@
 import type { Difficulty } from "../utils/constants.js";
 
+export interface BattleCodingExample {
+  input: string;
+  output: string;
+  explanation: string | null;
+}
+
 export interface BattleQuestionSeed {
   questionId: string;
   prompt: string;
@@ -11,6 +17,14 @@ export interface BattleQuestionSeed {
   code: string | null;
   tags: string[];
   xpValue: number;
+  // Machine-coding fields (only when type === "coding")
+  statement?: string | null;
+  inputDescription?: string | null;
+  outputDescription?: string | null;
+  constraints?: string[];
+  examples?: BattleCodingExample[];
+  hiddenTests?: BattleCodingExample[];
+  starterCode?: string | null;
 }
 
 interface BankEntry extends Omit<BattleQuestionSeed, "language" | "xpValue"> {
@@ -236,6 +250,199 @@ const BANK: BankEntry[] = [
   },
 ];
 
+export const CODING_PER_BATTLE = 2;
+export const CODING_XP = 100;
+
+/** Generic stdin→stdout scaffolds per execution language (echoes input; players implement solve). */
+const CODING_STARTERS: Record<string, string> = {
+  python: `import sys
+
+def solve() -> None:
+    data = sys.stdin.read()
+    # TODO: parse \`data\` and print your answer to stdout
+    print(data.strip())
+
+if __name__ == "__main__":
+    solve()
+`,
+  javascript: `const fs = require('fs');
+
+function solve(input) {
+  // TODO: parse \`input\` and return your answer as a string
+  return input.trim();
+}
+
+const input = fs.readFileSync(0, 'utf8');
+process.stdout.write(String(solve(input)));
+`,
+  typescript: `declare const require: any;
+const fs = require('fs');
+
+function solve(input: string): string {
+  // TODO: parse \`input\` and return your answer as a string
+  return input.trim();
+}
+
+const input: string = fs.readFileSync(0, 'utf8');
+process.stdout.write(solve(input));
+`,
+  java: `import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        StringBuilder sb = new StringBuilder();
+        while (sc.hasNextLine()) {
+            sb.append(sc.nextLine());
+            if (sc.hasNextLine()) sb.append("\\n");
+        }
+        // TODO: solve using sb.toString() and print the answer
+        System.out.print(sb.toString().trim());
+        sc.close();
+    }
+}
+`,
+  go: `package main
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
+)
+
+func main() {
+	scanner := bufio.NewScanner(os.Stdin)
+	var lines []string
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	input := strings.Join(lines, "\\n")
+	// TODO: solve using input and print the answer
+	fmt.Print(strings.TrimSpace(input))
+}
+`,
+  rust: `use std::io::{self, Read};
+
+fn main() {
+    let mut input = String::new();
+    io::stdin().read_to_string(&mut input).unwrap();
+    // TODO: solve using \`input\` and print the answer
+    print!("{}", input.trim());
+}
+`,
+};
+
+interface CodingBankEntry {
+  questionId: string;
+  prompt: string;
+  statement: string;
+  inputDescription: string;
+  outputDescription: string;
+  constraints: string[];
+  examples: BattleCodingExample[];
+  hiddenTests: BattleCodingExample[];
+  tags: string[];
+}
+
+const CODING_BANK: CodingBankEntry[] = [
+  {
+    questionId: "coding-two-sum",
+    prompt: "Two Sum — First Pair",
+    statement:
+      "Given a list of integers and a target value, find the FIRST pair of distinct positions whose values add up to the target and print their 0-based indices separated by a single space. Exactly one such pair is guaranteed to exist; scan i from left to right and j > i.",
+    inputDescription:
+      "Line 1: space-separated integers (the array). Line 2: a single integer (the target).",
+    outputDescription: "Two 0-based indices `i j` with i < j, separated by a single space.",
+    constraints: ["2 ≤ n ≤ 1000", "-10^4 ≤ nums[i], target ≤ 10^4", "Exactly one valid pair exists"],
+    examples: [
+      { input: "2 7 11 15\n9", output: "0 1", explanation: "nums[0] + nums[1] = 2 + 7 = 9." },
+      { input: "3 2 4\n6", output: "1 2", explanation: "nums[1] + nums[2] = 2 + 4 = 6." },
+      { input: "1 5 3 8\n9", output: "0 3", explanation: "nums[0] + nums[3] = 1 + 8 = 9." },
+    ],
+    hiddenTests: [
+      { input: "5 5 5\n10", output: "0 1", explanation: null },
+      { input: "-1 0 1 2\n1", output: "0 3", explanation: null },
+      { input: "10 20 30\n50", output: "1 2", explanation: null },
+    ],
+    tags: ["arrays", "hash-map"],
+  },
+  {
+    questionId: "coding-fizzbuzz",
+    prompt: "FizzBuzz Lines",
+    statement:
+      "Read a single integer n and print lines 1 through n with the classic substitutions: multiples of 3 become `Fizz`, multiples of 5 become `Buzz`, multiples of both become `FizzBuzz`, otherwise the number itself. One value per line, no trailing spaces.",
+    inputDescription: "A single integer n.",
+    outputDescription: "n lines: the FizzBuzz sequence from 1 to n.",
+    constraints: ["1 ≤ n ≤ 100"],
+    examples: [
+      { input: "3", output: "1\n2\nFizz", explanation: null },
+      { input: "5", output: "1\n2\nFizz\n4\nBuzz", explanation: "5 is a multiple of 5." },
+      { input: "15", output: "1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz", explanation: "15 is a multiple of both 3 and 5." },
+    ],
+    hiddenTests: [
+      { input: "1", output: "1", explanation: null },
+      { input: "7", output: "1\n2\nFizz\n4\nBuzz\nFizz\n7", explanation: null },
+      { input: "10", output: "1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz", explanation: null },
+    ],
+    tags: ["loops", "strings"],
+  },
+  {
+    questionId: "coding-palindrome",
+    prompt: "Valid Palindrome",
+    statement:
+      "Read a single line of text and print `YES` if it reads the same forwards and backwards when considering only alphanumeric characters and ignoring case — otherwise print `NO`.",
+    inputDescription: "A single line of text (may contain spaces and punctuation).",
+    outputDescription: "Exactly `YES` or `NO`.",
+    constraints: ["0 ≤ length ≤ 10^4", "Input is a single line"],
+    examples: [
+      { input: "Racecar", output: "YES", explanation: "Case is ignored." },
+      { input: "hello", output: "NO", explanation: null },
+      { input: "A man a plan a canal Panama", output: "YES", explanation: "Spaces are ignored." },
+    ],
+    hiddenTests: [
+      { input: "a", output: "YES", explanation: null },
+      { input: "ab", output: "NO", explanation: null },
+      { input: "No lemon, no melon", output: "YES", explanation: null },
+    ],
+    tags: ["strings", "two-pointers"],
+  },
+];
+
+function starterFor(language: string | null): string {
+  const key = (language || "python").toLowerCase();
+  return CODING_STARTERS[key] ?? CODING_STARTERS.python;
+}
+
+/** Deterministic 2-problem coding set per difficulty (always coding last). */
+function pickCodingQuestions(lang: string, difficulty: Difficulty): BattleQuestionSeed[] {
+  const order =
+    difficulty === "easy"
+      ? [CODING_BANK[1], CODING_BANK[0]]
+      : difficulty === "medium"
+        ? [CODING_BANK[0], CODING_BANK[2]]
+        : [CODING_BANK[2], CODING_BANK[1]];
+  return order.map((entry) => ({
+    questionId: entry.questionId,
+    prompt: entry.prompt,
+    type: "coding",
+    language: lang,
+    options: [],
+    correctAnswer: "",
+    explanation: `Solved when all ${entry.examples.length + entry.hiddenTests.length} test cases pass.`,
+    code: starterFor(lang),
+    tags: entry.tags,
+    xpValue: CODING_XP,
+    statement: entry.statement,
+    inputDescription: entry.inputDescription,
+    outputDescription: entry.outputDescription,
+    constraints: entry.constraints,
+    examples: entry.examples,
+    hiddenTests: entry.hiddenTests,
+    starterCode: starterFor(lang),
+  }));
+}
+
 /** Single source of truth for battle questions (Arena + Challenge flows share it). */
 export function buildBattleQuestions(
   language: string | null,
@@ -258,8 +465,11 @@ export function buildBattleQuestions(
     xpValue: xpFor(entry),
   });
 
+  // Every battle ends with 2 machine-coding challenges (host-locked like MCQs).
+  const mcqCount = Math.max(1, count - CODING_PER_BATTLE);
   // Deterministic: preferred difficulty first, then the rest in bank order.
   const preferred = BANK.filter((entry) => entry.difficulty === difficulty);
   const rest = BANK.filter((entry) => entry.difficulty !== difficulty);
-  return [...preferred, ...rest].slice(0, count).map(toSeed);
+  const mcq = [...preferred, ...rest].slice(0, mcqCount).map(toSeed);
+  return [...mcq, ...pickCodingQuestions(lang, difficulty)];
 }

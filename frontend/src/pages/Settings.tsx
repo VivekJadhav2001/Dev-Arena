@@ -1,9 +1,76 @@
-import { useState } from 'react'
-import { Code2, LoaderCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Check, Code2, LoaderCircle, Palette } from 'lucide-react'
 import { LeetCodeUsernameModal } from '../components/leetcode/LeetCodeUsernameModal'
 import { useAuthStore } from '../store/auth.store'
+import { useThemeStore } from '../store/theme.store'
 import { leetcodeService } from '../services/leetcode.service'
 import { userService } from '../services/user.service'
+
+function ThemeGallery() {
+  const themes = useThemeStore((s) => s.themes)
+  const activeThemeId = useThemeStore((s) => s.activeThemeId)
+  const loading = useThemeStore((s) => s.loading)
+  const error = useThemeStore((s) => s.error)
+  const saving = useThemeStore((s) => s.saving)
+  const loadThemes = useThemeStore((s) => s.loadThemes)
+  const setTheme = useThemeStore((s) => s.setTheme)
+
+  useEffect(() => {
+    void loadThemes()
+  }, [loadThemes])
+
+  return (
+    <section className="rounded-2xl border border-border bg-surface p-6">
+      <h2 className="flex items-center gap-2 font-bold">
+        <Palette size={18} className="text-primary" /> Theme
+      </h2>
+      <p className="mt-2 text-sm text-textMuted">
+        Every theme is served from the database and applied instantly across DevArena.
+      </p>
+      {error && (
+        <div className="mt-4 rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm text-red-200">
+          {error}
+        </div>
+      )}
+      {loading && themes.length === 0 ? (
+        <div className="mt-4 flex items-center gap-2 text-sm text-textMuted">
+          <LoaderCircle size={15} className="animate-spin" /> Loading themes…
+        </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {themes.map((theme) => {
+            const active = theme.themeId === activeThemeId
+            return (
+              <button
+                key={theme.themeId}
+                onClick={() => void setTheme(theme.themeId)}
+                disabled={saving && active}
+                title={theme.description || theme.name}
+                className={`group rounded-xl border p-3 text-left transition hover:-translate-y-0.5 ${
+                  active ? 'border-primary/70 bg-primary/5' : 'border-border hover:border-borderHover'
+                }`}
+              >
+                <span
+                  className="block h-12 rounded-lg"
+                  style={{ background: `linear-gradient(135deg, ${theme.vars.primary}, ${theme.vars.secondary} 55%, ${theme.vars.accent})` }}
+                />
+                <span className="mt-2 flex items-center justify-between gap-2">
+                  <b className="truncate text-sm">{theme.name}</b>
+                  {active &&
+                    (saving ? (
+                      <LoaderCircle size={14} className="shrink-0 animate-spin text-primary" />
+                    ) : (
+                      <Check size={14} className="shrink-0 text-primary" />
+                    ))}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
 
 function SettingsForm({ initialAllowChallenges, initialPublicProfile }: { initialAllowChallenges: boolean; initialPublicProfile: boolean }) {
   const checkSession = useAuthStore((s) => s.checkSession)
@@ -32,7 +99,7 @@ function SettingsForm({ initialAllowChallenges, initialPublicProfile }: { initia
 
   return (
     <>
-    <section className="mt-6 rounded-2xl border border-border bg-surface p-6">
+    <section className="rounded-2xl border border-border bg-surface p-6">
       <h2 className="font-bold">Challenges</h2>
       <p className="mt-2 text-sm text-textMuted">
         Control whether other developers can send you battle requests.
@@ -131,11 +198,14 @@ export default function Settings() {
           <LoaderCircle size={17} className="animate-spin" /> Loading settings…
         </div>
       ) : (
-        <SettingsForm
-          key={user.id}
-          initialAllowChallenges={user.settings.allowChallenges ?? true}
-          initialPublicProfile={user.settings.publicProfile ?? true}
-        />
+        <div className="mt-6 space-y-4">
+          <ThemeGallery />
+          <SettingsForm
+            key={user.id}
+            initialAllowChallenges={user.settings.allowChallenges ?? true}
+            initialPublicProfile={user.settings.publicProfile ?? true}
+          />
+        </div>
       )}
     </div>
   )

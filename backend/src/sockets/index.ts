@@ -1,5 +1,6 @@
 import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
+import { Battle } from "../models/battle.model.js";
 import { User } from "../models/user.model.js";
 
 let io: Server | null = null;
@@ -12,8 +13,21 @@ export function userRoom(userId: string): string {
   return `user:${userId}`;
 }
 
+export function battleRoom(roomCode: string): string {
+  return `battle:${String(roomCode).toUpperCase()}`;
+}
+
 export function emitToUser(userId: string, event: string, payload: unknown): void {
   io?.to(userRoom(userId)).emit(event, payload);
+}
+
+/**
+ * Notify room members that synchronized battle state changed
+ * (selection saved, question locked, code saved/run). Clients refetch
+ * the authoritative room snapshot over REST — no game facts travel here.
+ */
+export function emitBattleUpdated(roomCode: string): void {
+  io?.to(battleRoom(roomCode)).emit("battle:updated", { roomCode: String(roomCode).toUpperCase() });
 }
 
 /**
@@ -88,6 +102,32 @@ export function initSockets(httpServer: HttpServer, frontendUrl: string): Server
           "presence.lastSeenAt": new Date(),
         });
         socket.broadcast.emit("presence:developer_offline", { userId });
+      } catch {
+        // best-effort
+      }
+    });
+
+    // Synchronized battle rooms: members join to receive `battle:updated`
+    // pings and refetch authoritative state over REST.
+    socket.on("battle:join", async (payload: { roomCode?: string }) => {
+      try {
+        const roomCode = String(payload?.roomCode ?? "").toUpperCase();
+        const userId = socket.data.userId ?? authUserId;
+        if (!roomCode || !userId) return;
+        const battle = await Battle.findOne({ roomCode }).lean();
+        const member = battle?.players.some((p) => String(p.userId) === String(userId)) ?? false;
+        if (!member) return;
+        await socket.join(battleRoom(roomCode));
+      } catch {
+        // best-effort
+      }
+    });
+
+    socket.on("battle:leave", async (payload: { roomCode?: string }) => {
+      try {
+        const roomCode = String(payload?.roomCode ?? "").toUpperCase();
+        if (!roomCode) return;
+        await socket.leave(battleRoom(roomCode));
       } catch {
         // best-effort
       }
