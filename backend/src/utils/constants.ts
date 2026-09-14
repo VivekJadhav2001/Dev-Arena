@@ -9,6 +9,11 @@ export const PERSONAS = [
   "The Weekend Warrior",
   "The Specialist",
   "The Explorer",
+  "The All-Rounder",
+  "The Shipper-Duelist",
+  "The Grinder",
+  "The Duelist",
+  "The Arena Scholar",
 ] as const;
 
 export type Persona = (typeof PERSONAS)[number];

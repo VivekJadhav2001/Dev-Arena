@@ -8,7 +8,12 @@ export type Persona =
   | 'The Consistent Coder'
   | 'The Weekend Warrior'
   | 'The Specialist'
-  | 'The Explorer';
+  | 'The Explorer'
+  | 'The All-Rounder'
+  | 'The Shipper-Duelist'
+  | 'The Grinder'
+  | 'The Duelist'
+  | 'The Arena Scholar';
 
 export type Provider = 'local' | 'google' | 'github';
 export type BadgeTier = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond';
@@ -135,6 +140,39 @@ export interface IUser {
   joinedAt: string;
 }
 
+export interface IDnaDimensionDetail {
+  score: number;
+  label: string;
+  summary: string;
+  parts: Record<string, number>;
+}
+
+export interface IDnaCoverage {
+  hasGitHub: boolean;
+  hasLeetCode: boolean;
+  hasBattles: boolean;
+  sources: number;
+}
+
+export interface IDnaVitality {
+  commits: number;
+  solves: number;
+  battles: number;
+  daysSinceActive: number | null;
+  energy: number;
+  rungCount: number;
+  lastActiveLabel: string;
+}
+
+export interface IDnaHistoryEntry {
+  persona: Persona | null;
+  builder: number;
+  solver: number;
+  competitor: number;
+  versatility: number;
+  createdAt: string;
+}
+
 export interface IDNA {
   persona: Persona;
   personaReason: string;
@@ -143,6 +181,16 @@ export interface IDNA {
   languageProfile: Record<string, number>;
   activityHeatmap: Array<{ day: string; count: number }>;
   updatedAt: string;
+  versatility?: number;
+  coverage?: IDnaCoverage;
+  breakdown?: {
+    builder: IDnaDimensionDetail;
+    solver: IDnaDimensionDetail;
+    competitor: IDnaDimensionDetail;
+  };
+  signals?: string[];
+  vitality?: IDnaVitality;
+  flavor?: string;
 }
 
 export interface IXPBreakdown {

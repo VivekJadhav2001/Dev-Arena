@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   BarChart3,
   Code2,
@@ -7,9 +7,10 @@ import {
   Sparkles,
   UserRound,
   Inbox,
+  LogOut,
   Settings as SettingsIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChallengeNotifications } from "../components/challenges/ChallengeNotifications";
 import { LeetCodeUsernameModal } from "../components/leetcode/LeetCodeUsernameModal";
 import { useAppStore } from "../store/app.store";
@@ -48,6 +49,30 @@ export function MainLayout() {
   const [leetcodeDismissed, setLeetcodeDismissed] = useState(false);
   const showLeetCodePrompt = !loading && !!user && !user.leetcodeUsername && !leetcodeDismissed;
   const profilePath = user ? `/u/${user.userName}` : "/dashboard";
+  const navigate = useNavigate();
+  const logout = useAuthStore((s) => s.logout);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+  const handleLogout = async () => {
+    setMenuOpen(false);
+    await logout();
+    navigate("/login");
+  };
   const items = [...navItems, { to: profilePath, label: "Profile", icon: UserRound }];
   return (
     <div className="min-h-screen text-text">
@@ -76,19 +101,56 @@ export function MainLayout() {
               </NavLink>
             ))}
           </nav>
-          <NavLink
-            to={profilePath}
-            className="flex items-center gap-2 rounded-full border border-border bg-surface px-2 py-1.5 text-sm"
-          >
-            {user?.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
-            ) : (
-              <span className="grid h-7 w-7 place-items-center rounded-full bg-secondary font-bold text-white">
-                {(user?.userName?.[0] ?? 'D').toUpperCase()}
-              </span>
+          <div ref={menuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label="Account menu"
+              className="flex items-center gap-2 rounded-full border border-border bg-surface px-2 py-1.5 text-sm hover:border-borderHover"
+            >
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
+              ) : (
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-secondary font-bold text-white">
+                  {(user?.userName?.[0] ?? 'D').toUpperCase()}
+                </span>
+              )}
+              <span className="hidden sm:block">Level {user?.level ?? '–'}</span>
+            </button>
+            {menuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 mt-2 w-44 overflow-hidden rounded-xl border border-border bg-surfaceElevated py-1 shadow-card"
+              >
+                <NavLink
+                  to={profilePath}
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-textMuted hover:bg-surface hover:text-text"
+                >
+                  <UserRound size={15} /> Profile
+                </NavLink>
+                <NavLink
+                  to="/settings"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-textMuted hover:bg-surface hover:text-text"
+                >
+                  <SettingsIcon size={15} /> Settings
+                </NavLink>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => void handleLogout()}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-textMuted hover:bg-surface hover:text-text"
+                >
+                  <LogOut size={15} /> Logout
+                </button>
+              </div>
             )}
-            <span className="hidden sm:block">Level {user?.level ?? '–'}</span>
-          </NavLink>
+          </div>
           <NavLink
             to="/settings"
             title="Settings"

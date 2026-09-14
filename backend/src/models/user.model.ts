@@ -116,6 +116,15 @@ export interface IPresence {
   socketConnectedAt: Date | null;
 }
 
+export interface IDnaHistoryEntry {
+  persona: Persona | null;
+  builder: number;
+  solver: number;
+  competitor: number;
+  versatility: number;
+  createdAt: Date;
+}
+
 export interface IUser {
   email?: string | null;
   userName: string;
@@ -141,6 +150,7 @@ export interface IUser {
   leetcodeUsername: string | null;
   leetcodeStats: ILeetCodeStats;
   presence: IPresence;
+  dnaHistory: IDnaHistoryEntry[];
   lastActiveAt: Date;
   joinedAt: Date;
 }
@@ -288,6 +298,18 @@ const presenceSchema = new mongoose.Schema<IPresence>(
   { _id: false }
 );
 
+const dnaHistorySchema = new mongoose.Schema<IDnaHistoryEntry>(
+  {
+    persona: { type: String, default: null },
+    builder: { type: Number, default: 0 },
+    solver: { type: Number, default: 0 },
+    competitor: { type: Number, default: 0 },
+    versatility: { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const userSchema = new mongoose.Schema<IUser>(
   {
     email: {
@@ -348,6 +370,11 @@ const userSchema = new mongoose.Schema<IUser>(
         "The Weekend Warrior",
         "The Specialist",
         "The Explorer",
+        "The All-Rounder",
+        "The Shipper-Duelist",
+        "The Grinder",
+        "The Duelist",
+        "The Arena Scholar",
       ],
       default: null,
     },
@@ -406,6 +433,11 @@ const userSchema = new mongoose.Schema<IUser>(
     presence: {
       type: presenceSchema,
       default: () => ({}),
+    },
+
+    dnaHistory: {
+      type: [dnaHistorySchema],
+      default: [],
     },
 
     lastActiveAt: {

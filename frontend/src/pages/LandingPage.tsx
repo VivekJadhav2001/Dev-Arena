@@ -91,10 +91,10 @@ export default function LandingPage() {
           </nav>
           <div className="flex items-center gap-2">
             <Link
-              to="/dashboard"
+              to="/login"
               className="hover-target hidden rounded-xl px-4 py-2.5 text-sm font-semibold text-textMuted transition hover:text-text sm:block"
             >
-              Explore demo
+              Login
             </Link>
             <a
               href={`${api}/auth/github`}
