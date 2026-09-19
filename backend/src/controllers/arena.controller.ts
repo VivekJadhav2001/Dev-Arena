@@ -19,7 +19,19 @@ import {
   ExecutionError,
 } from "../services/code-execution.service.js";
 import { applyBattleCompletion } from "../services/battle-stats.service.js";
-import { emitBattleUpdated } from "../sockets/index.js";
+import {
+  emitBattleCancelled,
+  emitBattleCheer,
+  emitBattleLive,
+  emitBattleUpdated,
+  emitJoinAccepted,
+  emitJoinDeclined,
+  emitJoinExpired,
+  emitJoinRequest,
+  emitLiveBattlesUpdated,
+  emitPlayerRemoved,
+  getSpectatorCount,
+} from "../sockets/index.js";
 
 const createSchema = z.object({
   difficulty: z.enum(DIFFICULTIES).default("easy"),
@@ -45,6 +57,30 @@ const historySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(10),
 });
+const removePlayerSchema = z.object({
+  userId: z.string().min(1).max(40),
+});
+const cheerSchema = z.object({
+  targetUserId: z.string().min(1).max(40),
+  emoji: z.string().min(1).max(16),
+});
+
+/** Spectator reactions: fixed allow-list so the feed stays clean. No free text. */
+export const CHEER_EMOJIS = ["🔥", "👏", "🎉", "💪", "⚡", "❤️", "🚀", "🏆"] as const;
+
+const cheerAttempts = new Map<string, number[]>();
+const CHEER_WINDOW_MS = 60 * 1000;
+const CHEER_MAX = 20;
+
+function checkCheerLimit(userId: string, roomCode: string): boolean {
+  const key = `${userId}:${roomCode}`;
+  const now = Date.now();
+  const recent = (cheerAttempts.get(key) ?? []).filter((t) => now - t < CHEER_WINDOW_MS);
+  if (recent.length >= CHEER_MAX) return false;
+  recent.push(now);
+  cheerAttempts.set(key, recent);
+  return true;
+}
 
 type BattleDoc = NonNullable<Awaited<ReturnType<typeof Battle.findOne>>>;
 
@@ -533,8 +569,300 @@ export async function joinBattle(req: Request, res: Response, next: NextFunction
         pendingCode: null,
       });
       await battle.save();
+      emitBattleUpdated(battle.roomCode);
+      emitLiveBattlesUpdated(battle.roomCode);
     }
     return res.success(200, "Joined battle room", { roomCode: battle.roomCode, battleId: battle.id });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 1v1 live-join handshake (server-authoritative, host-approved).
+ *
+ * Flow: spectator clicks Join on a live card → POST /:roomCode/join-request
+ * → host gets `battle:join-request` (10s window) → host accepts/declines →
+ * requester gets `battle:join-accepted|declined|expired`.
+ *
+ * The server alone decides membership, expiry and capacity. The client only
+ * sends the intent — never the outcome. In-memory on purpose: requests live
+ * for 10 seconds, so no collection is needed and a restart safely drops them.
+ */
+const JOIN_REQUEST_TTL_MS = 10_000;
+
+interface PendingJoinRequest {
+  requestId: string;
+  roomCode: string;
+  requesterId: string;
+  hostId: string;
+  expiresAt: number;
+  timeout: NodeJS.Timeout;
+}
+
+const pendingJoinRequests = new Map<string, PendingJoinRequest>();
+
+function makeRequestId(): string {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
+}
+
+function findPendingFor(roomCode: string, requesterId: string): PendingJoinRequest | undefined {
+  for (const pending of pendingJoinRequests.values()) {
+    if (pending.roomCode === roomCode && pending.requesterId === String(requesterId)) return pending;
+  }
+  return undefined;
+}
+
+function clearPending(requestId: string): void {
+  const pending = pendingJoinRequests.get(requestId);
+  if (pending) {
+    clearTimeout(pending.timeout);
+    pendingJoinRequests.delete(requestId);
+  }
+}
+
+export async function requestJoin(req: Request, res: Response, next: NextFunction) {
+  try {
+    const roomCode = String(req.params.roomCode).toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(roomCode)) throw ApiError.badRequest("Invalid room code");
+    const battle = await Battle.findOne({ roomCode });
+    if (!battle) throw ApiError.notFound("Room not found");
+    if (battle.mode !== "1v1") throw ApiError.badRequest("Only 1v1 duels support host-approved joins");
+    if (battle.status !== "waiting") throw ApiError.badRequest("This battle has already started");
+    if (hasPlayer(battle, req.user!.id)) throw ApiError.badRequest("You are already in this battle");
+    if (battle.players.length >= battle.maxPlayers) throw ApiError.badRequest("This room is full");
+
+    const existing = findPendingFor(roomCode, req.user!.id);
+    if (existing) {
+      return res.success(200, "Join request already pending", {
+        requestId: existing.requestId,
+        roomCode,
+        expiresAt: new Date(existing.expiresAt).toISOString(),
+      });
+    }
+
+    const requester = await User.findById(req.user!.id).lean();
+    const requestId = makeRequestId();
+    const expiresAt = Date.now() + JOIN_REQUEST_TTL_MS;
+    const hostId = String(battle.hostId);
+    const requesterId = String(req.user!.id);
+
+    const timeout = setTimeout(() => {
+      pendingJoinRequests.delete(requestId);
+      const payload = { requestId, roomCode, reason: "Request expired" };
+      emitJoinExpired(requesterId, payload);
+      emitJoinExpired(hostId, payload);
+    }, JOIN_REQUEST_TTL_MS);
+    // A dropped request must never keep the process alive.
+    timeout.unref?.();
+
+    pendingJoinRequests.set(requestId, { requestId, roomCode, requesterId, hostId, expiresAt, timeout });
+
+    emitJoinRequest(hostId, {
+      requestId,
+      roomCode,
+      requesterId,
+      requesterUsername: requester?.userName ?? "A developer",
+      requesterAvatarUrl: requester?.avatarUrl ?? null,
+      mode: battle.mode,
+      difficulty: battle.difficulty,
+      language: battle.language,
+      playersCount: battle.players.length,
+      maxPlayers: battle.maxPlayers,
+      expiresAt: new Date(expiresAt).toISOString(),
+    });
+
+    return res.success(201, "Join request sent to the host", {
+      requestId,
+      roomCode,
+      expiresAt: new Date(expiresAt).toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function acceptJoinRequest(req: Request, res: Response, next: NextFunction) {
+  try {
+    const roomCode = String(req.params.roomCode).toUpperCase();
+    const requestId = String(req.params.requestId);
+    const pending = pendingJoinRequests.get(requestId);
+    if (!pending || pending.roomCode !== roomCode) throw ApiError.notFound("Join request not found");
+    if (Date.now() > pending.expiresAt) {
+      clearPending(requestId);
+      throw ApiError.badRequest("Join request expired");
+    }
+    const battle = await Battle.findOne({ roomCode });
+    if (!battle) {
+      clearPending(requestId);
+      throw ApiError.notFound("Room not found");
+    }
+    if (!battle.hostId.equals(req.user!.id)) throw ApiError.forbidden("Only the host can accept join requests");
+    if (battle.status !== "waiting") {
+      clearPending(requestId);
+      emitJoinDeclined(pending.requesterId, { requestId, roomCode, reason: "Battle already started" });
+      throw ApiError.badRequest("This battle has already started");
+    }
+    if (hasPlayer(battle, pending.requesterId)) {
+      clearPending(requestId);
+      return res.success(200, "Developer is already in this battle", {
+        roomCode: battle.roomCode,
+        battleId: battle.id,
+      });
+    }
+    if (battle.players.length >= battle.maxPlayers) {
+      clearPending(requestId);
+      emitJoinDeclined(pending.requesterId, { requestId, roomCode, reason: "Room is full" });
+      throw ApiError.badRequest("This room is full");
+    }
+
+    battle.players.push({
+      userId: new mongoose.Types.ObjectId(pending.requesterId),
+      score: 0,
+      answers: [],
+      pendingSelection: null,
+      pendingCode: null,
+    });
+    await battle.save();
+    clearPending(requestId);
+
+    const payload = { requestId, roomCode: battle.roomCode, battleId: battle.id };
+    emitJoinAccepted(pending.requesterId, payload);
+    emitJoinAccepted(String(req.user!.id), payload);
+    emitBattleUpdated(battle.roomCode);
+    emitLiveBattlesUpdated(battle.roomCode);
+
+    return res.success(200, "Join request accepted", { roomCode: battle.roomCode, battleId: battle.id });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function declineJoinRequest(req: Request, res: Response, next: NextFunction) {
+  try {
+    const roomCode = String(req.params.roomCode).toUpperCase();
+    const requestId = String(req.params.requestId);
+    const pending = pendingJoinRequests.get(requestId);
+    if (!pending || pending.roomCode !== roomCode) throw ApiError.notFound("Join request not found");
+    const battle = await Battle.findOne({ roomCode });
+    if (!battle) {
+      clearPending(requestId);
+      throw ApiError.notFound("Room not found");
+    }
+    if (!battle.hostId.equals(req.user!.id)) throw ApiError.forbidden("Only the host can decline join requests");
+    clearPending(requestId);
+    const payload = { requestId, roomCode, reason: "Host declined" };
+    emitJoinDeclined(pending.requesterId, payload);
+    emitJoinDeclined(String(req.user!.id), payload);
+    return res.success(200, "Join request declined", { requestId, roomCode });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/v1/arena/:roomCode/remove — host-only. Removes one player from a
+ * `waiting` lobby before the battle starts. Server-authoritative: only the
+ * host decides, only before start, never the host themselves.
+ */
+export async function removePlayer(req: Request, res: Response, next: NextFunction) {
+  try {
+    const roomCode = String(req.params.roomCode).toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(roomCode)) throw ApiError.badRequest("Invalid room code");
+    const { userId: targetUserId } = removePlayerSchema.parse(req.body);
+    const battle = await Battle.findOne({ roomCode });
+    if (!battle) throw ApiError.notFound("Battle room not found");
+    if (!battle.hostId.equals(req.user!.id))
+      throw ApiError.forbidden("Only the host can remove players");
+    if (battle.status !== "waiting")
+      throw ApiError.badRequest("Players can only be removed before the battle starts");
+    if (String(battle.hostId) === String(targetUserId))
+      throw ApiError.badRequest("The host cannot be removed");
+    const targetIndex = battle.players.findIndex((p) => String(p.userId) === String(targetUserId));
+    if (targetIndex === -1) throw ApiError.notFound("That developer is not in this battle");
+
+    battle.players.splice(targetIndex, 1);
+    await battle.save();
+
+    emitBattleUpdated(battle.roomCode);
+    emitLiveBattlesUpdated(battle.roomCode);
+    emitPlayerRemoved(String(targetUserId), {
+      roomCode: battle.roomCode,
+      removedUserId: String(targetUserId),
+      reason: "Host removed you from the battle lobby",
+    });
+
+    return res.success(200, "Player removed", {
+      roomCode: battle.roomCode,
+      removedUserId: String(targetUserId),
+      playersCount: battle.players.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/v1/arena/:roomCode/cancel — host-only. Cancels a `waiting` lobby
+ * before it starts. The lobby leaves the live list immediately; no XP or
+ * stats are awarded. Only the host decides — never spectators or players.
+ */
+export async function cancelBattle(req: Request, res: Response, next: NextFunction) {
+  try {
+    const roomCode = String(req.params.roomCode).toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(roomCode)) throw ApiError.badRequest("Invalid room code");
+    const battle = await Battle.findOne({ roomCode });
+    if (!battle) throw ApiError.notFound("Battle room not found");
+    if (!battle.hostId.equals(req.user!.id))
+      throw ApiError.forbidden("Only the host can cancel this battle");
+    if (battle.status !== "waiting")
+      throw ApiError.badRequest("Only battles waiting to start can be cancelled");
+
+    battle.status = "cancelled";
+    battle.endedAt = new Date();
+    await battle.save();
+
+    emitBattleUpdated(battle.roomCode);
+    emitLiveBattlesUpdated(battle.roomCode);
+    emitBattleCancelled(battle.roomCode, {
+      roomCode: battle.roomCode,
+      reason: "Host cancelled this battle",
+    });
+
+    return res.success(200, "Battle cancelled", { roomCode: battle.roomCode });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/v1/arena/my-active — the caller's newest still-open battle
+ * (`waiting` or `active`), so a lobby survives tab switches and in-app
+ * navigation. It lives until the host cancels or starts it — the client
+ * only reads it here, the server remains authoritative.
+ */
+export async function getMyActiveBattle(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.user!.id);
+    const battle = await Battle.findOne({
+      "players.userId": userId,
+      status: { $in: ["waiting", "active"] },
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+    if (!battle) return res.success(200, "No active battle", { battle: null });
+    return res.success(200, "Active battle", {
+      battle: {
+        roomCode: battle.roomCode,
+        status: battle.status,
+        mode: battle.mode,
+        difficulty: battle.difficulty,
+        language: battle.language,
+        playersCount: battle.players.length,
+        maxPlayers: battle.maxPlayers,
+        isHost: String(battle.hostId) === String(req.user!.id),
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -594,18 +922,42 @@ export async function startBattle(req: Request, res: Response, next: NextFunctio
     });
     if (!battle || !hasPlayer(battle, req.user!.id))
       throw ApiError.notFound("Battle room not found");
+    if (battle.status === "cancelled") throw ApiError.badRequest("This battle was cancelled");
     if (!battle.hostId.equals(req.user!.id))
       throw ApiError.forbidden("Only the host can start this battle");
     if (battle.players.length < 2) throw ApiError.badRequest("Waiting for more developers to join");
     await ensureQuestions(battle);
     await ensureRoomIndex(battle);
-    if (battle.status === "waiting") {
+    const newlyStarted = battle.status === "waiting";
+    if (newlyStarted) {
       battle.status = "active";
       battle.currentQuestionIndex = 0;
       battle.startedAt = new Date();
       await battle.save();
     }
     emitBattleUpdated(battle.roomCode);
+    emitLiveBattlesUpdated(battle.roomCode);
+    // Global "battle went live" ping so active users can catch the stream.
+    // Best-effort: a notification failure must never break the start itself.
+    if (newlyStarted) {
+      try {
+        const host = await User.findById(battle.hostId).lean();
+        emitBattleLive({
+          roomCode: battle.roomCode,
+          mode: battle.mode,
+          difficulty: battle.difficulty,
+          language: battle.language,
+          playersCount: battle.players.length,
+          maxPlayers: battle.maxPlayers,
+          hostUsername: host?.userName ?? "A developer",
+          playerIds: battle.players.map((p) => String(p.userId)),
+          totalQuestions: battle.questions.length,
+          startedAt: battle.startedAt?.toISOString() ?? new Date().toISOString(),
+        });
+      } catch {
+        // best-effort
+      }
+    }
     return res.success(200, "Battle started", await stateFor(battle, req.user!.id));
   } catch (error) {
     next(error);
@@ -943,6 +1295,7 @@ export async function forfeitBattle(req: Request, res: Response, next: NextFunct
     });
     if (!battle || !hasPlayer(battle, req.user!.id))
       throw ApiError.notFound("Battle room not found");
+    if (battle.status === "cancelled") throw ApiError.badRequest("This battle was cancelled");
     if (battle.status === "finished") {
       // Already decided — report the outcome without mutating or double-counting stats.
       const drew = battle.winnerId == null;
@@ -1071,6 +1424,199 @@ export async function getDetails(req: Request, res: Response, next: NextFunction
       standings,
       startedAt: battle.startedAt?.toISOString() ?? null,
       endedAt: battle.endedAt?.toISOString() ?? null,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+function cheerTotals(battle: { cheers?: Array<{ targetUserId: unknown; count: number }> }) {
+  const cheers = (battle.cheers ?? []).map((c) => ({
+    targetUserId: String(c.targetUserId),
+    count: c.count,
+  }));
+  return { cheers, totalCheers: cheers.reduce((sum, c) => sum + c.count, 0) };
+}
+
+/**
+ * GET /api/v1/arena/live — every battle currently worth watching
+ * (`active` first, then `waiting` lobbies). Safe summary only: no answer keys,
+ * hidden tests, pending selections or code. Powers the navbar "Live" section.
+ */
+export async function getLiveBattles(req: Request, res: Response, next: NextFunction) {
+  try {
+    const battles = await Battle.find({ status: { $in: ["active", "waiting"] } })
+      .sort({ status: 1, startedAt: -1, createdAt: -1 })
+      .limit(24)
+      .lean();
+    const userIds = [...new Set(battles.flatMap((b) => b.players.map((p) => String(p.userId))))];
+    const users = userIds.length > 0 ? await User.find({ _id: { $in: userIds } }).lean() : [];
+    const nameOf = (id: string) => users.find((u) => String(u._id) === id)?.userName ?? "Developer";
+    const avatarOf = (id: string) => users.find((u) => String(u._id) === id)?.avatarUrl ?? null;
+    void req;
+    const items = battles
+      .sort((a, b) => (a.status === b.status ? 0 : a.status === "active" ? -1 : 1))
+      .map((battle) => {
+        const { totalCheers } = cheerTotals(battle);
+        return {
+          roomCode: battle.roomCode,
+          mode: battle.mode,
+          status: battle.status,
+          difficulty: battle.difficulty,
+          language: battle.language,
+          currentQuestionIndex: battle.currentQuestionIndex ?? 0,
+          totalQuestions: battle.questions.length,
+          playersCount: battle.players.length,
+          maxPlayers: battle.maxPlayers,
+          players: battle.players.map((p) => {
+            const id = String(p.userId);
+            return {
+              userId: id,
+              username: nameOf(id),
+              avatarUrl: avatarOf(id),
+              score: p.score,
+              answersCount: p.answers.length,
+              isHost: String(battle.hostId) === id,
+            };
+          }),
+          spectatorCount: getSpectatorCount(battle.roomCode),
+          totalCheers,
+          startedAt: battle.startedAt?.toISOString() ?? null,
+        };
+      });
+    return res.success(200, "Live battles", {
+      battles: items,
+      total: items.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function spectateSnapshot(battle: BattleDoc, viewerId: string) {
+  const users = await User.find({
+    _id: { $in: battle.players.map((player) => player.userId) },
+  }).lean();
+  const roomIndex = battle.currentQuestionIndex ?? 0;
+  const currentId = battle.questions[roomIndex]?.questionId ?? null;
+  const cheerMap = new Map(
+    (battle.cheers ?? []).map((c) => [String(c.targetUserId), c.count]),
+  );
+  const standings = await standingsFor(battle);
+  const isParticipant = hasPlayer(battle, viewerId);
+  return {
+    roomCode: battle.roomCode,
+    mode: battle.mode,
+    status: battle.status,
+    difficulty: battle.difficulty,
+    language: battle.language,
+    timeLimit: battle.timeLimit,
+    currentQuestionIndex: roomIndex,
+    totalQuestions: battle.questions.length,
+    players: battle.players.map((player) => {
+      const id = player.userId.toString();
+      const user = users.find((candidate) => String(candidate._id) === id);
+      const hasAnswered =
+        (player.pendingSelection?.questionId === currentId && currentId != null) ||
+        (player.pendingCode?.questionId === currentId && currentId != null);
+      return {
+        userId: id,
+        username: user?.userName ?? "Developer",
+        avatarUrl: user?.avatarUrl ?? null,
+        score: player.score,
+        answersCount: player.answers.length,
+        hasAnswered,
+        isHost: battle.hostId.equals(player.userId),
+        cheers: cheerMap.get(id) ?? 0,
+      };
+    }),
+    // Spectators see the same public question as players — prompt, options,
+    // statement and visible examples only. Answer keys, explanations and
+    // hidden tests never leave the server on this endpoint.
+    currentQuestion:
+      battle.status === "active" && battle.questions[roomIndex]
+        ? publicQuestion(battle.questions[roomIndex])
+        : null,
+    standings,
+    ...cheerTotals(battle),
+    spectatorCount: getSpectatorCount(battle.roomCode),
+    startedAt: battle.startedAt?.toISOString() ?? null,
+    isParticipant,
+    canJoin:
+      battle.status === "waiting" &&
+      !isParticipant &&
+      battle.players.length < (battle.maxPlayers ?? 8),
+  };
+}
+
+/**
+ * GET /api/v1/arena/:roomCode/spectate — safe livestream snapshot for any
+ * signed-in user. Waiting/active battles only; finished battles use
+ * `/result` + `/details`. Never exposes answer keys, hidden tests,
+ * pending selections or anyone's code.
+ */
+export async function getSpectate(req: Request, res: Response, next: NextFunction) {
+  try {
+    const battle = await Battle.findOne({
+      roomCode: String(req.params.roomCode).toUpperCase(),
+    });
+    if (!battle || (battle.status !== "active" && battle.status !== "waiting"))
+      throw ApiError.notFound("Live battle not found");
+    await ensureQuestions(battle);
+    await ensureRoomIndex(battle);
+    return res.success(200, "Live battle stream", await spectateSnapshot(battle, req.user!.id));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/v1/arena/:roomCode/cheer — cheer on a player (`{ targetUserId, emoji }`).
+ * Server-authoritative: target must be a player, emoji must be allow-listed,
+ * rate-limited per spectator. Broadcasts `battle:cheer` to the room.
+ */
+export async function cheerBattle(req: Request, res: Response, next: NextFunction) {
+  try {
+    const input = cheerSchema.parse(req.body);
+    if (!(CHEER_EMOJIS as readonly string[]).includes(input.emoji)) {
+      throw ApiError.badRequest("That reaction is not supported");
+    }
+    const roomCode = String(req.params.roomCode).toUpperCase();
+    if (!checkCheerLimit(req.user!.id, roomCode)) {
+      throw ApiError.badRequest("Slow down — too many cheers at once");
+    }
+    const battle = await Battle.findOne({ roomCode });
+    if (!battle || (battle.status !== "active" && battle.status !== "waiting"))
+      throw ApiError.notFound("Live battle not found");
+    const target = battle.players.find((p) => String(p.userId) === String(input.targetUserId));
+    if (!target) throw ApiError.badRequest("That developer is not in this battle");
+    if (String(target.userId) === String(req.user!.id)) {
+      throw ApiError.badRequest("You cannot cheer yourself — hype up your rival instead");
+    }
+    const existing = battle.cheers.find(
+      (c) => String(c.targetUserId) === String(target.userId),
+    );
+    if (existing) existing.count += 1;
+    else battle.cheers.push({ targetUserId: target.userId, count: 1 });
+    await battle.save();
+    const { totalCheers } = cheerTotals(battle);
+    const totalForTarget =
+      battle.cheers.find((c) => String(c.targetUserId) === String(target.userId))?.count ?? 1;
+    const me = await User.findById(req.user!.id).lean();
+    emitBattleCheer(roomCode, {
+      roomCode,
+      targetUserId: String(target.userId),
+      emoji: input.emoji,
+      fromUserId: String(req.user!.id),
+      fromUsername: me?.userName ?? "A spectator",
+      totalForTarget,
+      totalCheers,
+    });
+    return res.success(200, "Cheer sent", {
+      targetUserId: String(target.userId),
+      emoji: input.emoji,
+      totalForTarget,
+      totalCheers,
     });
   } catch (error) {
     next(error);

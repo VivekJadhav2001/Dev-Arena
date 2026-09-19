@@ -5,17 +5,8 @@ import { syncGitHubUser } from "../services/github.service.js";
 import express from "express"
 const router = express.Router();
 
-
-// GOOGLE
-/*
-  STEP 1
-
-  User visits:
-
-  /api/auth/google
-
-  Passport redirects them to Google.
-*/
+// OAuth flow per provider: GET /:provider redirects to the provider, which
+// calls back to /:provider/callback to establish the session.
 router.get(
   "/google",
   passport.authenticate("google", {
@@ -23,11 +14,6 @@ router.get(
   }),
 );
 
-/*
-  STEP 2
-
-  Google redirects here after authentication.
-*/
 router.get(
   "/google/callback",
   passport.authenticate("google", {
@@ -39,17 +25,6 @@ router.get(
   },
 );
 
-
-//GITHUB
-/*
-  STEP 1
-
-  User visits:
-
-  /api/auth/github
-
-  Passport redirects them to GitHub.
-*/
 router.get(
     "/github",
     passport.authenticate("github",
@@ -59,12 +34,6 @@ router.get(
     )
 )
 
-
-/*
-  STEP 2
-
-  GitHub redirects here after authentication.
-*/
 router.get(
     "/github/callback",
     passport.authenticate("github",
@@ -72,25 +41,24 @@ router.get(
             failureRedirect:"/api/v1/auth/login-failed"
         }
     ),
-    async (req,res,next)=>{
-        try {
-          await syncGitHubUser(req.user!.id);
-          res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
-        } catch (error) {
-          next(error);
-        }
+    (req,res)=>{
+        // Redirect first so login feels instant. The GitHub import fans out
+        // to dozens of API calls (repos, languages, commit counts) — it now
+        // runs in the background and the dashboard reads the cached copy,
+        // with a manual re-sync button as fallback. A sync failure must never
+        // fail the login itself.
+        const userId = req.user!.id;
+        res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
+        void syncGitHubUser(userId).catch(() => {
+          // Best-effort: surfaced on the next manual sync instead.
+        });
     }
 )
-
-//NOW THE USER IS LOGINED logged in user
 
 router.get("/me",requireAuth,getCurrentUser)
 
 router.post("/logout",requireAuth,logout)
 
-/*
-  OAuth failure
-*/
 router.get("/login-failed", (_req, res) => {
   res.status(401).json({
     success: false,

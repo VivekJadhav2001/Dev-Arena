@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tsx --test src/utils/constants.test.ts src/services/battle-stats.test.ts src/services/dna.test.ts"
   },
   "keywords": [],
   "author": "",

@@ -1,4 +1,5 @@
 import {
+  Ban,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -12,6 +13,7 @@ import {
   Play,
   Swords,
   Timer,
+  UserX,
   Volume2,
   VolumeX,
   XCircle,
@@ -23,7 +25,9 @@ import { copyText } from "../lib/clipboard";
 import {
   arenaService,
   CODING_LANGUAGES,
+  type IBattleCancelledPayload,
   type IBattleRoomState,
+  type IPlayerRemovedPayload,
   type IRunReport,
 } from "../services/arena.service";
 import type { IBattleQuestion } from "../types";
@@ -343,6 +347,8 @@ export default function BattleRoom() {
   const [room, setRoom] = useState<IBattleRoomState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
   const [lockBusy, setLockBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
@@ -382,6 +388,37 @@ export default function BattleRoom() {
       socket.emit("battle:leave", { roomCode });
     };
   }, [socket, roomCode, load]);
+
+  // Removed by the host: exit the lobby immediately instead of waiting
+  // for the next poll to 404 on `getRoom`.
+  useEffect(() => {
+    if (!socket || !roomCode) return;
+    const onRemoved = (payload: IPlayerRemovedPayload) => {
+      if (String(payload?.roomCode ?? "").toUpperCase() !== String(roomCode).toUpperCase()) return;
+      if (!currentUserId || String(payload?.removedUserId) !== String(currentUserId)) return;
+      setError(payload?.reason ?? "Host removed you from this battle.");
+      window.setTimeout(() => navigate("/arena"), 1500);
+    };
+    socket.on("battle:removed", onRemoved);
+    return () => {
+      socket.off("battle:removed", onRemoved);
+    };
+  }, [socket, roomCode, currentUserId, navigate]);
+
+  // Host cancelled the waiting lobby: everyone leaves at once.
+  useEffect(() => {
+    if (!socket || !roomCode) return;
+    const onCancelled = (payload: IBattleCancelledPayload) => {
+      if (String(payload?.roomCode ?? "").toUpperCase() !== String(roomCode).toUpperCase()) return;
+      setError(payload?.reason ?? "Host cancelled this battle.");
+      void load();
+      window.setTimeout(() => navigate("/arena"), 1800);
+    };
+    socket.on("battle:cancelled", onCancelled);
+    return () => {
+      socket.off("battle:cancelled", onCancelled);
+    };
+  }, [socket, roomCode, navigate, load]);
 
   useEffect(() => {
     // Polling resolves asynchronously before calling setState.
@@ -502,6 +539,37 @@ export default function BattleRoom() {
     }
   }
 
+  async function removePlayer(targetUserId: string, username: string) {
+    if (!room || removingId) return;
+    if (!window.confirm(`Remove ${username} from this battle? They can rejoin with the code.`)) return;
+    setRemovingId(targetUserId);
+    try {
+      await arenaService.removePlayer(room.roomCode, targetUserId);
+      void load();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to remove that player.",
+      );
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  async function cancelLobby() {
+    if (!room || cancelBusy) return;
+    if (!window.confirm("Cancel this battle? Everyone in the lobby will be sent back to the Arena.")) return;
+    setCancelBusy(true);
+    try {
+      await arenaService.cancelBattle(room.roomCode);
+      navigate("/arena");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to cancel this battle.",
+      );
+      setCancelBusy(false);
+    }
+  }
+
   // MCQ select: saves a changeable pre-lock selection, never advances.
   async function select(option: string) {
     if (!question || isCoding || savingPick || lockBusy) return;
@@ -587,7 +655,11 @@ export default function BattleRoom() {
             {room.status.toUpperCase()}
           </p>
           <h1 className="mt-1 font-display text-3xl font-bold">
-            {room.status === "waiting" ? "Battle lobby" : "Battle in progress"}
+            {room.status === "waiting"
+              ? "Battle lobby"
+              : room.status === "cancelled"
+                ? "Battle cancelled"
+                : "Battle in progress"}
           </h1>
         </div>
         <div className="flex items-center gap-2">
@@ -656,29 +728,65 @@ export default function BattleRoom() {
                 key={player.userId}
                 className="rounded-xl border border-border bg-background p-4"
               >
-                <b>{player.username}</b>
-                <span className="float-right text-primary">
-                  {player.score} XP
-                </span>
-                <p className="mt-1 text-sm text-textMuted">
-                  {player.isHost ? "Host" : "Challenger"}
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <b className="block truncate">{player.username}</b>
+                    <p className="mt-1 text-sm text-textMuted">
+                      {player.isHost ? "Host" : "Challenger"}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-primary">
+                    {player.score} XP
+                  </span>
+                </div>
+                {amIHost && !player.isHost && (
+                  <button
+                    onClick={() => void removePlayer(player.userId, player.username)}
+                    disabled={removingId != null}
+                    title={`Remove ${player.username} from this battle`}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-danger/40 px-3 py-1.5 text-xs font-bold text-red-300 transition hover:bg-danger/10 disabled:opacity-50"
+                  >
+                    {removingId === player.userId ? (
+                      <LoaderCircle size={13} className="animate-spin" />
+                    ) : (
+                      <UserX size={13} />
+                    )}
+                    {removingId === player.userId ? "Removing…" : "Remove"}
+                  </button>
+                )}
               </div>
             ))}
           </div>
-          {amIHost && players.length >= 2 ? (
-            <button
-              onClick={() => void start()}
-              disabled={busy}
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 font-bold text-background disabled:opacity-60"
-            >
-              {busy ? (
-                <LoaderCircle className="animate-spin" size={17} />
-              ) : (
-                <Swords size={17} />
+          {amIHost ? (
+            <div className="mt-6 flex flex-wrap items-center gap-2">
+              {players.length >= 2 && (
+                <button
+                  onClick={() => void start()}
+                  disabled={busy || cancelBusy}
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 font-bold text-background disabled:opacity-60"
+                >
+                  {busy ? (
+                    <LoaderCircle className="animate-spin" size={17} />
+                  ) : (
+                    <Swords size={17} />
+                  )}
+                  Start battle
+                </button>
               )}
-              Start battle
-            </button>
+              <button
+                onClick={() => void cancelLobby()}
+                disabled={cancelBusy || busy}
+                title="Cancel this battle for everyone"
+                className="inline-flex items-center gap-2 rounded-xl border border-danger/40 px-4 py-3 text-sm font-bold text-red-300 transition hover:bg-danger/10 disabled:opacity-50"
+              >
+                {cancelBusy ? (
+                  <LoaderCircle className="animate-spin" size={17} />
+                ) : (
+                  <Ban size={17} />
+                )}
+                {cancelBusy ? "Cancelling…" : "Cancel battle"}
+              </button>
+            </div>
           ) : (
             <p className="mt-6 text-sm text-textMuted">
               {players.length < 2
@@ -926,9 +1034,26 @@ export default function BattleRoom() {
         </div>
       )}
 
-      {(room.status === "finished" || room.status === "cancelled") && (
+      {room.status === "finished" && (
         <div className="mt-7 rounded-2xl border border-border bg-surface p-6 text-sm text-textMuted">
-          This battle is {room.status}. Redirecting to the result…
+          This battle is finished. Redirecting to the result…
+        </div>
+      )}
+
+      {room.status === "cancelled" && (
+        <div className="mt-7 rounded-2xl border border-danger/40 bg-danger/10 p-6">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-red-200">
+            <Ban size={18} /> This battle was cancelled
+          </h2>
+          <p className="mt-1 text-sm text-red-200/80">
+            The host called it off before it started. No XP was awarded.
+          </p>
+          <button
+            onClick={() => navigate("/arena")}
+            className="mt-4 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-background"
+          >
+            Back to Arena
+          </button>
         </div>
       )}
     </div>

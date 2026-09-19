@@ -3,12 +3,13 @@ dotenv.config();
 import express from "express";
 
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import connectDB from "./config/db.js";
 import { env } from "./config/env.js";
 import {
   globalError,
   globalResponses,
-} from "./middlewares/globalResponses.middlware.js";
+} from "./middlewares/globalResponses.middleware.js";
 import passport from "./config/passport.js";
 
 import session from "express-session";
@@ -21,9 +22,7 @@ import arenaRoutes from "./routes/arena.routes.js";
 import leaderboardRoutes from "./routes/leaderboard.routes.js";
 import themeRoutes from "./routes/theme.routes.js";
 import developersRoutes from "./routes/developers.routes.js";
-import challengesRoutes from "./routes/challenges.routes.js";
 import wrappedRoutes from "./routes/wrapped.routes.js";
-import { sweepExpiredChallenges } from "./controllers/challenge.controller.js";
 import { backfillBattleStats } from "./services/battle-stats.service.js";
 import { ensureThemeSeeds } from "./services/theme-seeds.js";
 import { initSockets } from "./sockets/index.js";
@@ -43,7 +42,18 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-//Session
+// Generous global API guard (battle screens poll every few seconds, so the
+// ceiling stays far above normal multi-tab use). Per-endpoint abuse limits
+// (cheers, code runs, challenges) already live in their controllers.
+app.use(
+  "/api/",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 1000,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+  }),
+);
 
 app.use(
   session({
@@ -52,22 +62,17 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-
-      secure: false,
-
+      // Cookies must be Secure in production (HTTPS); plain HTTP needs it off
+      // for local development, where NODE_ENV defaults to "development".
+      secure: env.NODE_ENV === "production",
       sameSite: "lax",
-
       maxAge: 1000 * 60 * 60 * 24 * 7,
     },
   }),
 );
 
-//Passport
 app.use(passport.initialize());
-
 app.use(passport.session());
-
-///routes
 
 app.use("/api/v1/auth",authRoutes)
 app.use("/api/v1/users", userRoutes);
@@ -77,7 +82,6 @@ app.use("/api/v1/arena", arenaRoutes);
 app.use("/api/v1/leaderboard", leaderboardRoutes);
 app.use("/api/v1/themes", themeRoutes);
 app.use("/api/v1/developers", developersRoutes);
-app.use("/api/v1/challenges", challengesRoutes);
 app.use("/api/v1/wrapped", wrappedRoutes);
 
 app.use(globalError);
@@ -112,7 +116,3 @@ void (async () => {
   }
 })();
 
-// Background sweep: expire pending challenges so offline users don't pile up stale invites.
-setInterval(() => {
-  void sweepExpiredChallenges();
-}, 60 * 1000);

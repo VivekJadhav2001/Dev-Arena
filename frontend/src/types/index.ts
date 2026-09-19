@@ -326,37 +326,6 @@ export interface ILeaderboardEntry {
   isCurrentUser: boolean;
 }
 
-export type ChallengeStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
-
-export interface IChallengeUser {
-  id: string;
-  userName: string;
-  avatarUrl: string | null;
-  persona: Persona | null;
-  level: number;
-}
-
-export interface IChallenge {
-  id: string;
-  challengerId: string;
-  challengedId: string;
-  challenger?: IChallengeUser;
-  challenged?: IChallengeUser;
-  status: ChallengeStatus;
-  battleId: string | null;
-  settings: { difficulty: Difficulty; language: string | null; timeLimit: number };
-  message: string | null;
-  expiresAt: string;
-  respondedAt: string | null;
-  createdAt: string | null;
-}
-
-export interface IChallengeAccepted {
-  challengeId: string;
-  battleId: string;
-  roomCode: string;
-}
-
 export interface IApiError {
   success: boolean;
   message: string;

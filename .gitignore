@@ -17,3 +17,7 @@ DEVARENA_SPEC.md
 *.log
 .idea/
 .vscode/
+
+# Build and test artifacts
+*.tsbuildinfo
+coverage/

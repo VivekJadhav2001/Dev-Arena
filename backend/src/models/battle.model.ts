@@ -105,6 +105,11 @@ export interface IBattleQuestion {
   starterCode?: string | null;
 }
 
+export interface IBattleCheer {
+  targetUserId: mongoose.Types.ObjectId;
+  count: number;
+}
+
 export interface IBattle {
   roomCode: string;
   hostId: mongoose.Types.ObjectId;
@@ -121,6 +126,10 @@ export interface IBattle {
   startedAt: Date | null;
   endedAt: Date | null;
   winnerId: mongoose.Types.ObjectId | null;
+  /** Live-spectate support: aggregated cheers per player (server-authoritative). */
+  cheers: IBattleCheer[];
+  /** Best-effort cached spectator hint; realtime counts travel over sockets. */
+  spectatorCount: number;
 }
 
 const answerSchema = new mongoose.Schema(
@@ -236,6 +245,18 @@ const questionSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const cheerSchema = new mongoose.Schema(
+  {
+    targetUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    count: { type: Number, default: 0, min: 0 },
+  },
+  { _id: false },
+);
+
 const battleSchema = new mongoose.Schema<IBattle>(
   {
     roomCode: { type: String, unique: true, index: true },
@@ -260,6 +281,8 @@ const battleSchema = new mongoose.Schema<IBattle>(
       ref: "User",
       default: null,
     },
+    cheers: { type: [cheerSchema], default: [] },
+    spectatorCount: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true },
 );

@@ -443,7 +443,7 @@ function pickCodingQuestions(lang: string, difficulty: Difficulty): BattleQuesti
   }));
 }
 
-/** Single source of truth for battle questions (Arena + Challenge flows share it). */
+/** Single source of truth for battle questions used by the Arena flow. */
 export function buildBattleQuestions(
   language: string | null,
   difficulty: Difficulty,

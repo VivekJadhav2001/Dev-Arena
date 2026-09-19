@@ -6,13 +6,15 @@ import {
   Trophy,
   Sparkles,
   UserRound,
-  Inbox,
   LogOut,
+  Radio,
   Settings as SettingsIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { ChallengeNotifications } from "../components/challenges/ChallengeNotifications";
+import { JoinRequestNotifications } from "../components/live/JoinRequestNotifications";
+import { LiveBattleNotifications } from "../components/live/LiveBattleNotifications";
 import { LeetCodeUsernameModal } from "../components/leetcode/LeetCodeUsernameModal";
+import { arenaService } from "../services/arena.service";
 import { useAppStore } from "../store/app.store";
 import { useAuthStore } from "../store/auth.store";
 import { useThemeStore } from "../store/theme.store";
@@ -21,7 +23,7 @@ const navItems = [
   { to: "/dashboard", label: "My proof", icon: BarChart3 },
   { to: "/wrapped", label: "Wrapped", icon: Sparkles },
   { to: "/arena", label: "Battle", icon: Swords },
-  { to: "/challenges", label: "Requests", icon: Inbox },
+  { to: "/live", label: "Live", icon: Radio },
   { to: "/leaderboard", label: "Rankings", icon: Trophy },
 ];
 
@@ -73,6 +75,37 @@ export function MainLayout() {
     await logout();
     navigate("/login");
   };
+  // Navbar "Live" badge: best-effort count of watchable battles, polled quietly.
+  const [liveCount, setLiveCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!user) {
+      // Best-effort navbar badge reset on logout (external live-count cache).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLiveCount(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchLive = async () => {
+      try {
+        const data = await arenaService.getLiveBattles();
+        if (!cancelled) setLiveCount(data.total);
+      } catch {
+        if (!cancelled) setLiveCount(null);
+      }
+    };
+    void fetchLive();
+    const timer = window.setInterval(() => void fetchLive(), 20000);
+    // A just-started battle bumps the badge instantly instead of waiting
+    // for the next poll (best-effort; the poll stays the source of truth).
+    const onLiveStarted = () =>
+      setLiveCount((prev) => (prev == null ? prev : prev + 1));
+    window.addEventListener("live:battle-started", onLiveStarted);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("live:battle-started", onLiveStarted);
+    };
+  }, [user]);
   const items = [...navItems, { to: profilePath, label: "Profile", icon: UserRound }];
   return (
     <div className="min-h-screen text-text">
@@ -93,11 +126,16 @@ export function MainLayout() {
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${isActive ? "bg-surfaceRaised text-primary" : "text-textMuted hover:bg-surface hover:text-text"}`
+                  `relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${isActive ? "bg-surfaceRaised text-primary" : "text-textMuted hover:bg-surface hover:text-text"}`
                 }
               >
                 <Icon size={16} />
                 {label}
+                {to === "/live" && liveCount != null && liveCount > 0 && (
+                  <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {liveCount > 9 ? "9+" : liveCount}
+                  </span>
+                )}
               </NavLink>
             ))}
           </nav>
@@ -168,10 +206,15 @@ export function MainLayout() {
               key={to}
               to={to}
               className={({ isActive }) =>
-                `whitespace-nowrap rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-surfaceRaised text-primary" : "text-textMuted"}`
+                `relative whitespace-nowrap rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-surfaceRaised text-primary" : "text-textMuted"}`
               }
             >
               {label}
+              {to === "/live" && liveCount != null && liveCount > 0 && (
+                <span className="ml-1 inline-grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 align-middle text-[10px] font-bold text-white">
+                  {liveCount > 9 ? "9+" : liveCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -179,7 +222,8 @@ export function MainLayout() {
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <Outlet />
       </main>
-      <ChallengeNotifications />
+      <JoinRequestNotifications />
+      <LiveBattleNotifications />
       {showLeetCodePrompt && (
         <LeetCodeUsernameModal onClose={() => setLeetcodeDismissed(true)} />
       )}

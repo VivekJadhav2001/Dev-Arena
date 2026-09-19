@@ -7,7 +7,6 @@ export interface UpdateSettingsRequest {
   notifications?: boolean
   theme?: 'dark' | 'light' | 'system'
   themeId?: string
-  allowChallenges?: boolean
 }
 
 export const userService = {

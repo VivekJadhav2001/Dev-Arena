@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { InfoTip } from '../components/dna/InfoTip'
 import { LeetCodeStats } from '../components/leetcode/LeetCodeStats'
 import { HeatWall, type HeatDay } from '../components/profile/ActivityHeatmap'
 import { copyText } from '../lib/clipboard'
@@ -491,6 +492,10 @@ export default function PublicProfile() {
             <h2 className="flex items-center gap-2 font-bold">
               <Medal className="text-primary" size={19} />
               Badges
+              <InfoTip
+                label="badges"
+                text="Badges are earned on the server from real activity — battles fought and won, win streaks and coding consistency. Each badge has a tier from bronze up to diamond, and they count toward leaderboard standing."
+              />
               <span className="ml-auto text-sm font-normal text-textMuted">{badges.length}</span>
             </h2>
             {badges.length === 0 ? (

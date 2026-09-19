@@ -216,6 +216,130 @@ export interface IBattleDetails {
   endedAt: string | null
 }
 
+export const CHEER_EMOJIS = ['🔥', '👏', '🎉', '💪', '⚡', '❤️', '🚀', '🏆'] as const
+export type CheerEmoji = (typeof CHEER_EMOJIS)[number]
+
+export interface ILiveBattlePlayer {
+  userId: string
+  username: string
+  avatarUrl: string | null
+  score: number
+  answersCount: number
+  isHost: boolean
+}
+
+export interface ILiveBattle {
+  roomCode: string
+  mode: BattleMode
+  status: 'waiting' | 'active' | 'finished' | 'cancelled'
+  difficulty: Difficulty
+  language: string | null
+  currentQuestionIndex: number
+  totalQuestions: number
+  playersCount: number
+  maxPlayers: number
+  players: ILiveBattlePlayer[]
+  spectatorCount: number
+  totalCheers: number
+  startedAt: string | null
+}
+
+export interface ISpectatePlayer extends ILiveBattlePlayer {
+  hasAnswered: boolean
+  cheers: number
+}
+
+export interface ISpectateSnapshot {
+  roomCode: string
+  mode: BattleMode
+  status: 'waiting' | 'active' | 'finished' | 'cancelled'
+  difficulty: Difficulty
+  language: string | null
+  timeLimit: number
+  currentQuestionIndex: number
+  totalQuestions: number
+  players: ISpectatePlayer[]
+  currentQuestion: IBattleQuestion | null
+  standings: IStandingEntry[]
+  cheers: Array<{ targetUserId: string; count: number }>
+  totalCheers: number
+  spectatorCount: number
+  startedAt: string | null
+  isParticipant: boolean
+  canJoin: boolean
+}
+
+export interface ICheerEvent {
+  roomCode: string
+  targetUserId: string
+  emoji: string
+  fromUserId: string
+  fromUsername: string
+  totalForTarget: number
+  totalCheers: number
+}
+
+/** Global "battle went live" ping broadcast to all active sockets. */
+export interface IBattleLivePayload {
+  roomCode: string
+  mode: string
+  difficulty: string
+  language: string | null
+  playersCount: number
+  maxPlayers: number
+  hostUsername: string
+  playerIds: string[]
+  totalQuestions: number
+  startedAt: string | null
+}
+
+/** Host-side 10s decision window for a 1v1 live join. */
+export interface IJoinRequestPayload {
+  requestId: string
+  roomCode: string
+  requesterId: string
+  requesterUsername: string
+  requesterAvatarUrl: string | null
+  mode: string
+  difficulty: string
+  language: string | null
+  playersCount: number
+  maxPlayers: number
+  expiresAt: string
+}
+
+export interface IJoinResolutionPayload {
+  requestId: string
+  roomCode: string
+  battleId?: string
+  reason?: string
+}
+
+/** Emitted to a developer removed from a waiting lobby by the host. */
+export interface IPlayerRemovedPayload {
+  roomCode: string
+  removedUserId: string
+  reason?: string
+}
+
+/** Emitted to lobby members + spectators when the host cancels a waiting battle. */
+export interface IBattleCancelledPayload {
+  roomCode: string
+  reason?: string
+}
+
+/** The caller's newest still-open battle — survives tab/app navigation. */
+export interface IMyActiveBattle {
+  roomCode: string
+  status: 'waiting' | 'active'
+  mode: BattleMode
+  difficulty: Difficulty
+  language: string | null
+  playersCount: number
+  maxPlayers: number
+  isHost: boolean
+}
+
 export const arenaService = {
   async createBattle(payload: CreateBattleRequest): Promise<{ roomCode: string; battleId: string; mode: BattleMode; maxPlayers: number }> {
     const response = await apiRequest<IApiResponse<{ roomCode: string; battleId: string; mode: BattleMode; maxPlayers: number }>>(
@@ -293,6 +417,79 @@ export const arenaService = {
 
   async forfeit(roomCode: string): Promise<{ outcome: 'win' | 'loss' | 'draw' }> {
     const response = await apiRequest<IApiResponse<{ outcome: 'win' | 'loss' | 'draw' }>>('post', `/arena/${roomCode}/forfeit`)
+    return response.data
+  },
+
+  /** Live battles worth watching (active first, then waiting lobbies). */
+  async getLiveBattles(): Promise<{ battles: ILiveBattle[]; total: number }> {
+    const response = await apiRequest<IApiResponse<{ battles: ILiveBattle[]; total: number }>>('get', '/arena/live')
+    return response.data
+  },
+
+  /** Safe livestream snapshot for spectators (no answer keys or code). */
+  async getSpectate(roomCode: string): Promise<IApiResponse<ISpectateSnapshot>> {
+    const response = await apiRequest<IApiResponse<ISpectateSnapshot>>('get', `/arena/${roomCode}/spectate`)
+    return response
+  },
+
+  /** Cheer on one player in a live battle. Server validates + broadcasts. */
+  async cheer(roomCode: string, payload: { targetUserId: string; emoji: string }): Promise<{ targetUserId: string; emoji: string; totalForTarget: number; totalCheers: number }> {
+    const response = await apiRequest<IApiResponse<{ targetUserId: string; emoji: string; totalForTarget: number; totalCheers: number }>>('post', `/arena/${roomCode}/cheer`, payload)
+    return response.data
+  },
+
+  /** Ask the host for the open 1v1 slot (10s decision window, host-approved). */
+  async requestJoin(roomCode: string): Promise<{ requestId: string; roomCode: string; expiresAt: string }> {
+    const response = await apiRequest<IApiResponse<{ requestId: string; roomCode: string; expiresAt: string }>>(
+      'post',
+      `/arena/${roomCode}/join-request`,
+    )
+    return response.data
+  },
+
+  /** Host-only: accept a pending join request and fill the slot immediately. */
+  async acceptJoin(roomCode: string, requestId: string): Promise<{ roomCode: string; battleId: string }> {
+    const response = await apiRequest<IApiResponse<{ roomCode: string; battleId: string }>>(
+      'post',
+      `/arena/${roomCode}/join-request/${requestId}/accept`,
+    )
+    return response.data
+  },
+
+  /** Host-only: decline a pending join request. */
+  async declineJoin(roomCode: string, requestId: string): Promise<{ requestId: string; roomCode: string }> {
+    const response = await apiRequest<IApiResponse<{ requestId: string; roomCode: string }>>(
+      'post',
+      `/arena/${roomCode}/join-request/${requestId}/decline`,
+    )
+    return response.data
+  },
+
+  /** Host-only: remove one player from a waiting lobby (before start). */
+  async removePlayer(roomCode: string, userId: string): Promise<{ roomCode: string; removedUserId: string; playersCount: number }> {
+    const response = await apiRequest<IApiResponse<{ roomCode: string; removedUserId: string; playersCount: number }>>(
+      'post',
+      `/arena/${roomCode}/remove`,
+      { userId },
+    )
+    return response.data
+  },
+
+  /** Host-only: cancel a waiting battle before it starts. No XP, no stats. */
+  async cancelBattle(roomCode: string): Promise<{ roomCode: string }> {
+    const response = await apiRequest<IApiResponse<{ roomCode: string }>>(
+      'post',
+      `/arena/${roomCode}/cancel`,
+    )
+    return response.data
+  },
+
+  /** Newest still-open battle I'm in — keeps the lobby alive across navigation. */
+  async getMyActive(): Promise<{ battle: IMyActiveBattle | null }> {
+    const response = await apiRequest<IApiResponse<{ battle: IMyActiveBattle | null }>>(
+      'get',
+      '/arena/my-active',
+    )
     return response.data
   },
 }

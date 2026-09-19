@@ -5,7 +5,6 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 /* eslint-disable react-refresh/only-export-components */
 import { Suspense, lazy } from 'react'
 import routes from './app/routes'
-import { AuthProvider } from './app/providers/AuthProvider'
 import { SocketProvider } from './app/providers/SocketProvider'
 import { paintBootTheme } from './store/theme.store'
 
@@ -21,15 +20,13 @@ const ParticleBackground = lazy(() =>
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AuthProvider>
-      <SocketProvider>
-        <Suspense fallback={null}>
-          <ParticleBackground />
-        </Suspense>
-        <div className="relative z-10">
-          <RouterProvider router={createBrowserRouter(routes)} />
-        </div>
-      </SocketProvider>
-    </AuthProvider>
+    <SocketProvider>
+      <Suspense fallback={null}>
+        <ParticleBackground />
+      </Suspense>
+      <div className="relative z-10">
+        <RouterProvider router={createBrowserRouter(routes)} />
+      </div>
+    </SocketProvider>
   </React.StrictMode>
 )

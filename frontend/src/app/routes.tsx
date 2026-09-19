@@ -1,4 +1,5 @@
-import type { RouteObject } from "react-router-dom";
+import { Outlet, type RouteObject } from "react-router-dom";
+import { ProtectedRoute } from "./ProtectedRoute";
 import LandingPage from "../pages/LandingPage";
 import Dashboard from "../pages/Dashboard";
 import DNAPage from "../pages/DNAPage";
@@ -8,10 +9,11 @@ import ArenaLobby from "../pages/ArenaLobby";
 import BattleRoom from "../pages/BattleRoom";
 import BattleResult from "../pages/BattleResult";
 import BattleDetails from "../pages/BattleDetails";
+import LiveBattles from "../pages/LiveBattles";
+import LiveBattleView from "../pages/LiveBattleView";
 import Leaderboard from "../pages/Leaderboard";
 import PublicProfile from "../pages/PublicProfile";
 import AuthPage from "../pages/AuthPage";
-import Challenges from "../pages/Challenges";
 import Settings from "../pages/Settings";
 import { MainLayout } from "../layout/MainLayout";
 import { RouteError } from "./RouteError";
@@ -23,18 +25,30 @@ export default [
     element: <MainLayout />,
     errorElement: <RouteError />,
     children: [
-      { path: "/dashboard", element: <Dashboard /> },
-      { path: "/dna", element: <DNAPage /> },
-      { path: "/wrapped", element: <WrappedPage /> },
-      { path: "/wrapped/:username", element: <WrappedShared /> },
-      { path: "/arena", element: <ArenaLobby /> },
-      { path: "/challenges", element: <Challenges /> },
-      { path: "/battle/:roomCode", element: <BattleRoom /> },
-      { path: "/battle/:roomCode/result", element: <BattleResult /> },
-      { path: "/battle/:roomCode/details", element: <BattleDetails /> },
-      { path: "/leaderboard", element: <Leaderboard /> },
-      { path: "/u/:username", element: <PublicProfile /> },
-      { path: "/settings", element: <Settings /> },
+      // Everything inside the app shell is logged-in-only: logged-out
+      // visitors are redirected to /login by ProtectedRoute.
+      {
+        element: (
+          <ProtectedRoute>
+            <Outlet />
+          </ProtectedRoute>
+        ),
+        children: [
+          { path: "/dashboard", element: <Dashboard /> },
+          { path: "/dna", element: <DNAPage /> },
+          { path: "/wrapped", element: <WrappedPage /> },
+          { path: "/wrapped/:username", element: <WrappedShared /> },
+          { path: "/arena", element: <ArenaLobby /> },
+          { path: "/live", element: <LiveBattles /> },
+          { path: "/live/:roomCode", element: <LiveBattleView /> },
+          { path: "/battle/:roomCode", element: <BattleRoom /> },
+          { path: "/battle/:roomCode/result", element: <BattleResult /> },
+          { path: "/battle/:roomCode/details", element: <BattleDetails /> },
+          { path: "/leaderboard", element: <Leaderboard /> },
+          { path: "/u/:username", element: <PublicProfile /> },
+          { path: "/settings", element: <Settings /> },
+        ],
+      },
     ],
   },
 ] satisfies RouteObject[];

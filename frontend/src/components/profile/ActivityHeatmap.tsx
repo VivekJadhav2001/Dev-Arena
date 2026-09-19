@@ -10,6 +10,11 @@ export interface HeatDay {
 const WEEKS = 30
 const DAY_MS = 86400000
 const MAX_TOOLTIP_LINES = 7
+/** Cell + gutter geometry (px). Month labels reuse these so columns align by construction. */
+const CELL = 11
+const GAP = 3
+const GUTTER_W = 30
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -115,37 +120,48 @@ export function HeatWall({
   const shownLines = tip ? tip.lines.slice(0, MAX_TOOLTIP_LINES) : []
   const hiddenLines = tip ? Math.max(0, tip.lines.length - shownLines.length) : 0
 
+  const labelByColumn = new Map(monthLabels.map((label) => [label.index, label.text]))
+
   return (
     <div>
       <p className="text-sm text-textMuted">
         <b className="text-text">{total.toLocaleString()}</b> {unit} in the last {WEEKS} weeks
       </p>
-      <div className="mt-4 overflow-x-auto pb-1">
-        <div className="inline-block">
-          <div className="relative mb-1 h-4">
-            {monthLabels.map((label) => (
-              <span
-                key={`${label.index}-${label.text}`}
-                className="absolute text-[11px] text-textSubtle"
-                style={{ left: 30 + label.index * 15 }}
-              >
-                {label.text}
-              </span>
+      <div className="mt-4 max-w-full overflow-x-auto pb-1">
+        <div className="inline-block min-w-full">
+          {/* Month labels share the exact column geometry below, so they stay aligned. */}
+          <div className="mb-1 flex" style={{ gap: GAP }}>
+            <div className="shrink-0" style={{ width: GUTTER_W }} aria-hidden />
+            {weeks.map((_, ci) => (
+              <div key={ci} className="relative shrink-0" style={{ width: CELL, height: 16 }} aria-hidden>
+                {labelByColumn.has(ci) && (
+                  <span className="absolute left-0 whitespace-nowrap text-[11px] leading-4 text-textSubtle">
+                    {labelByColumn.get(ci)}
+                  </span>
+                )}
+              </div>
             ))}
           </div>
-          <div className="flex gap-[3px]">
-            <div className="mr-1 grid grid-rows-7 gap-[3px] text-[10px] leading-[11px] text-textSubtle">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
-                <span key={d} className={i % 2 === 0 ? 'invisible' : ''}>
+          <div className="flex" style={{ gap: GAP }}>
+            <div className="grid shrink-0 grid-rows-7" style={{ gap: GAP, width: GUTTER_W }}>
+              {DAY_NAMES.map((d, i) => (
+                <span
+                  key={d}
+                  style={{ height: CELL }}
+                  className={`text-[10px] leading-[11px] text-textSubtle ${i % 2 === 0 ? 'invisible' : ''}`}
+                >
                   {d}
                 </span>
               ))}
             </div>
             {weeks.map((col, ci) => (
-              <div key={ci} className="grid grid-rows-7 gap-[3px]">
+              <div key={ci} className="grid shrink-0 grid-rows-7" style={{ gap: GAP }}>
                 {col.map((cell) => (
                   <span
                     key={cell.key}
+                    role="img"
+                    aria-label={`${cell.count} ${unit} on ${cell.pretty}`}
+                    title={`${cell.count} ${unit} on ${cell.pretty}`}
                     onMouseEnter={(e) =>
                       setTip({
                         x: Math.min(e.clientX, window.innerWidth - 280),
@@ -157,7 +173,18 @@ export function HeatWall({
                       })
                     }
                     onMouseLeave={() => setTip(null)}
-                    className={`h-[11px] w-[11px] cursor-pointer rounded-[3px] ${styles[levelFor(cell.count)] ?? styles[0]}`}
+                    onClick={(e) =>
+                      setTip({
+                        x: Math.min(e.clientX, window.innerWidth - 280),
+                        y: e.clientY,
+                        date: cell.pretty,
+                        count: cell.count,
+                        lines: cell.lines,
+                        unit,
+                      })
+                    }
+                    style={{ height: CELL, width: CELL }}
+                    className={`cursor-pointer rounded-[3px] ${styles[levelFor(cell.count)] ?? styles[0]}`}
                   />
                 ))}
               </div>
@@ -166,7 +193,7 @@ export function HeatWall({
           <div className="mt-2 flex items-center justify-end gap-1.5 text-[11px] text-textSubtle">
             Less
             {styles.map((style, i) => (
-              <span key={i} className={`h-[11px] w-[11px] rounded-[3px] ${style}`} />
+              <span key={i} style={{ height: CELL, width: CELL }} className={`rounded-[3px] ${style}`} />
             ))}
             More
           </div>

@@ -1,10 +1,13 @@
-import { Check, Copy, History, LoaderCircle, Plus, Radio, Swords, Trophy, Users, X } from 'lucide-react'
+import { Ban, Check, Copy, Eye, History, LoaderCircle, Plus, Radio, Swords, Trophy, Users, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { copyText } from '../lib/clipboard'
-import { arenaService, type BattleMode, type IBattleResult } from '../services/arena.service'
+import { arenaService, type BattleMode, type IBattleResult, type IMyActiveBattle } from '../services/arena.service'
 import { useAppStore } from '../store/app.store'
 import type { Difficulty } from '../types'
+
+/** Last lobby code — survives tab switches and in-app navigation. */
+const LAST_BATTLE_KEY = 'devarena:lastBattleCode'
 
 const LANGUAGES = ['JavaScript', 'TypeScript', 'Python', 'Java', 'Go', 'Rust']
 
@@ -118,11 +121,21 @@ export default function ArenaLobby() {
   const [mode, setMode] = useState<BattleMode>('1v1')
   const [maxPlayers, setMaxPlayers] = useState(4)
   const [roomCode, setRoomCode] = useState('')
-  const [createdCode, setCreatedCode] = useState<string | null>(null)
+  const [createdCode, setCreatedCode] = useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem(LAST_BATTLE_KEY)
+    } catch {
+      return null
+    }
+  })
   const [copied, setCopied] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [cancelBusy, setCancelBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [popupCode, setPopupCode] = useState<string | null>(null)
+  // Newest still-open battle I'm in — the lobby lives here until the host
+  // cancels or starts it, even across tab switches and route changes.
+  const [myActive, setMyActive] = useState<IMyActiveBattle | null>(null)
   // Battle history is prefetched at login; this reads the cache and tops up only when stale.
   const historyData = useAppStore((s) => s.history.data)
   const historyLoading = useAppStore((s) => s.history.loading)
@@ -137,6 +150,31 @@ export default function ArenaLobby() {
     // Served from the app store (prefetched at login); refetches only when stale.
     void ensureHistory()
   }, [ensureHistory])
+
+  const refreshMyActive = useCallback(async () => {
+    try {
+      const data = await arenaService.getMyActive()
+      setMyActive(data.battle)
+      if (!data.battle) {
+        try {
+          window.localStorage.removeItem(LAST_BATTLE_KEY)
+        } catch {
+          // Storage is best-effort; the server stays authoritative.
+        }
+      }
+    } catch {
+      // Best-effort banner — the Arena works without it.
+    }
+  }, [])
+
+  useEffect(() => {
+    // Restores the open lobby after tab switches / route changes; resolves
+    // asynchronously before calling setState.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void refreshMyActive()
+    const timer = window.setInterval(() => void refreshMyActive(), 10000)
+    return () => window.clearInterval(timer)
+  }, [refreshMyActive])
 
   const fail = (err: unknown) =>
     setError(err instanceof Error ? err.message : 'Unable to complete that request.')
@@ -154,10 +192,37 @@ export default function ArenaLobby() {
         ...(mode === 'royale' ? { maxPlayers } : {}),
       })
       setCreatedCode(room.roomCode)
+      try {
+        window.localStorage.setItem(LAST_BATTLE_KEY, room.roomCode)
+      } catch {
+        // Storage is best-effort; the server stays authoritative.
+      }
+      void refreshMyActive()
     } catch (err) {
       fail(err)
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function cancelLobby(code: string) {
+    if (cancelBusy) return
+    if (!window.confirm(`Cancel battle ${code}? Everyone in the lobby will be sent back.`)) return
+    setCancelBusy(true)
+    setError(null)
+    try {
+      await arenaService.cancelBattle(code)
+      if (createdCode === code) setCreatedCode(null)
+      try {
+        window.localStorage.removeItem(LAST_BATTLE_KEY)
+      } catch {
+        // Storage is best-effort; the server stays authoritative.
+      }
+      setMyActive(null)
+    } catch (err) {
+      fail(err)
+    } finally {
+      setCancelBusy(false)
     }
   }
 
@@ -189,6 +254,64 @@ export default function ArenaLobby() {
         Create a private 1v1 duel or a 1-vs-many royale room, or join one with a code.
         Multiple-choice coding questions, verified by DevArena.
       </p>
+      <Link
+        to="/live"
+        className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-red-400/30 bg-red-500/5 px-5 py-4 transition hover:border-red-400/60"
+      >
+        <span className="flex items-center gap-3">
+          <span className="relative flex h-3 w-3">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+            <span className="relative inline-flex h-3 w-3 rounded-full bg-red-400" />
+          </span>
+          <span>
+            <b className="block text-sm">Live battle streams</b>
+            <span className="block text-xs text-textMuted">
+              Watch battles in progress and cheer your favorite developer.
+            </span>
+          </span>
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-red-500/15 px-3 py-2 text-sm font-bold text-red-300">
+          <Eye size={15} /> Watch live
+        </span>
+      </Link>
+      {myActive && myActive.roomCode !== createdCode && (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/40 bg-primary/5 px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-sm font-bold">
+              {myActive.isHost ? 'Your lobby is still open' : 'You have a battle waiting'}{' '}
+              <code className="rounded-md bg-background px-2 py-0.5 font-mono tracking-[.2em]">
+                {myActive.roomCode}
+              </code>
+            </p>
+            <p className="mt-0.5 text-xs text-textMuted">
+              {myActive.mode === 'royale' ? '1 vs Many' : '1 vs 1'} · {myActive.status} ·{' '}
+              {myActive.playersCount}/{myActive.maxPlayers} players
+              {myActive.isHost
+                ? ' — it stays here until you start or cancel it.'
+                : ' — hop back in before the host starts.'}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              onClick={() => navigate(`/battle/${myActive.roomCode}`)}
+              className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-background"
+            >
+              {myActive.status === 'active' ? 'Rejoin battle' : 'Enter lobby'}
+            </button>
+            {myActive.isHost && myActive.status === 'waiting' && (
+              <button
+                onClick={() => void cancelLobby(myActive.roomCode)}
+                disabled={cancelBusy}
+                title="Cancel this battle for everyone"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-danger/40 px-4 py-2.5 text-sm font-bold text-red-300 transition hover:bg-danger/10 disabled:opacity-50"
+              >
+                {cancelBusy ? <LoaderCircle className="animate-spin" size={15} /> : <Ban size={15} />}
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {error && (
         <div className="mt-5 rounded-xl border border-danger/40 bg-danger/10 p-4 text-sm text-red-200">
           {error}
@@ -325,6 +448,15 @@ export default function ArenaLobby() {
                 className="mt-3 w-full rounded-xl bg-primary px-4 py-3 font-bold text-background"
               >
                 Enter room
+              </button>
+              <button
+                onClick={() => void cancelLobby(createdCode)}
+                disabled={cancelBusy}
+                title="Cancel this battle for everyone"
+                className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-danger/40 px-4 py-2.5 text-sm font-bold text-red-300 transition hover:bg-danger/10 disabled:opacity-50"
+              >
+                {cancelBusy ? <LoaderCircle className="animate-spin" size={15} /> : <Ban size={15} />}
+                {cancelBusy ? 'Cancelling…' : 'Cancel battle'}
               </button>
             </div>
           )}

@@ -72,9 +72,8 @@ function ThemeGallery() {
   )
 }
 
-function SettingsForm({ initialAllowChallenges, initialPublicProfile }: { initialAllowChallenges: boolean; initialPublicProfile: boolean }) {
+function SettingsForm({ initialPublicProfile }: { initialPublicProfile: boolean }) {
   const checkSession = useAuthStore((s) => s.checkSession)
-  const [allowChallenges, setAllowChallenges] = useState(initialAllowChallenges)
   const [publicProfile, setPublicProfile] = useState(initialPublicProfile)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -87,7 +86,7 @@ function SettingsForm({ initialAllowChallenges, initialPublicProfile }: { initia
     setError(null)
     setMessage(null)
     try {
-      await userService.updateSettings({ allowChallenges, publicProfile })
+      await userService.updateSettings({ publicProfile })
       await checkSession(true)
       setMessage('Preferences saved.')
     } catch (err) {
@@ -100,9 +99,9 @@ function SettingsForm({ initialAllowChallenges, initialPublicProfile }: { initia
   return (
     <>
     <section className="rounded-2xl border border-border bg-surface p-6">
-      <h2 className="font-bold">Challenges</h2>
+      <h2 className="font-bold">Visibility</h2>
       <p className="mt-2 text-sm text-textMuted">
-        Control whether other developers can send you battle requests.
+        Control who can see your developer profile.
       </p>
 
       <label className="mt-5 flex items-center justify-between gap-4 rounded-xl border border-border bg-background p-4">
@@ -116,20 +115,6 @@ function SettingsForm({ initialAllowChallenges, initialPublicProfile }: { initia
           aria-pressed={publicProfile}
         >
           <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-all ${publicProfile ? 'left-6' : 'left-1'}`} />
-        </button>
-      </label>
-
-      <label className="mt-3 flex items-center justify-between gap-4 rounded-xl border border-border bg-background p-4">
-        <span>
-          <b className="text-sm">Allow code challenges</b>
-          <span className="block text-xs text-textMuted">Let developers send you battle requests</span>
-        </span>
-        <button
-          onClick={() => setAllowChallenges((v) => !v)}
-          className={`relative h-7 w-12 rounded-full transition ${allowChallenges ? 'bg-primary' : 'bg-border'}`}
-          aria-pressed={allowChallenges}
-        >
-          <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-all ${allowChallenges ? 'left-6' : 'left-1'}`} />
         </button>
       </label>
 
@@ -202,7 +187,6 @@ export default function Settings() {
           <ThemeGallery />
           <SettingsForm
             key={user.id}
-            initialAllowChallenges={user.settings.allowChallenges ?? true}
             initialPublicProfile={user.settings.publicProfile ?? true}
           />
         </div>
