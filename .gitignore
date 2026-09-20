@@ -21,3 +21,5 @@ DEVARENA_SPEC.md
 # Build and test artifacts
 *.tsbuildinfo
 coverage/
+
+AGENTS.md
