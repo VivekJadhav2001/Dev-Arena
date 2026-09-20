@@ -21,6 +21,7 @@ import { InfoTip } from '../components/dna/InfoTip'
 import { LeetCodeStats } from '../components/leetcode/LeetCodeStats'
 import { HeatWall, type HeatDay } from '../components/profile/ActivityHeatmap'
 import { copyText } from '../lib/clipboard'
+import { previewProfileUrl, setPageMeta } from '../lib/share'
 import { userService } from '../services/user.service'
 import type { BadgeTier, IUser } from '../types'
 
@@ -84,6 +85,17 @@ export default function PublicProfile() {
     void load()
   }, [load])
 
+  useEffect(() => {
+    if (!user) return
+    const wins = user.battleStats?.wins ?? 0
+    setPageMeta({
+      title: `${user.userName} on DevArena`,
+      description: `${user.persona ?? 'Developer'} · Level ${user.level} · ${user.totalXp} XP · ${wins} battle wins`,
+      image: user.avatarUrl,
+      url: `${window.location.origin}/u/${user.userName}`,
+    })
+  }, [user])
+
   const githubWall = useMemo<HeatDay[]>(() => {
     return (user?.githubStats?.activityCalendar ?? []).map((entry) => ({
       day: entry.day,
@@ -117,7 +129,9 @@ export default function PublicProfile() {
   }, [user])
 
   async function share() {
-    const ok = await copyText(`${window.location.origin}/u/${username}`)
+    // Crawler-first URL: scrapers get the developer's picture + stats in the
+    // post; humans land on this profile.
+    const ok = await copyText(previewProfileUrl(username))
     setCopied(ok)
     if (ok) window.setTimeout(() => setCopied(false), 2000)
   }

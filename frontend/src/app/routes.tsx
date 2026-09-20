@@ -25,7 +25,12 @@ export default [
     element: <MainLayout />,
     errorElement: <RouteError />,
     children: [
-      // Everything inside the app shell is logged-in-only: logged-out
+      // Public share targets: logged-out visitors (and link previews that
+      // redirect here) must be able to view them without signing in.
+      { path: "/wrapped/:username", element: <WrappedShared /> },
+      { path: "/battle/:roomCode/details", element: <BattleDetails /> },
+      { path: "/u/:username", element: <PublicProfile /> },
+      // Everything else inside the app shell is logged-in-only: logged-out
       // visitors are redirected to /login by ProtectedRoute.
       {
         element: (
@@ -37,15 +42,12 @@ export default [
           { path: "/dashboard", element: <Dashboard /> },
           { path: "/dna", element: <DNAPage /> },
           { path: "/wrapped", element: <WrappedPage /> },
-          { path: "/wrapped/:username", element: <WrappedShared /> },
           { path: "/arena", element: <ArenaLobby /> },
           { path: "/live", element: <LiveBattles /> },
           { path: "/live/:roomCode", element: <LiveBattleView /> },
           { path: "/battle/:roomCode", element: <BattleRoom /> },
           { path: "/battle/:roomCode/result", element: <BattleResult /> },
-          { path: "/battle/:roomCode/details", element: <BattleDetails /> },
           { path: "/leaderboard", element: <Leaderboard /> },
-          { path: "/u/:username", element: <PublicProfile /> },
           { path: "/settings", element: <Settings /> },
         ],
       },

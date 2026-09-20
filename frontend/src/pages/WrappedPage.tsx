@@ -9,7 +9,7 @@ import {
   exportPosterPng,
   linkedInShareUrl,
   nativeSharePoster,
-  recapUrl,
+  recapPreviewUrl,
   shareTextFor,
   xShareUrl,
 } from '../components/wrapped/share'
@@ -60,7 +60,7 @@ export default function WrappedPage() {
 
   async function copyLink() {
     if (!recap) return
-    const ok = await copyText(recapUrl(recap.userName))
+    const ok = await copyText(recapPreviewUrl(recap.userName))
     setCopied(ok)
     if (ok) window.setTimeout(() => setCopied(false), 2000)
   }

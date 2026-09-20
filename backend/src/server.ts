@@ -23,6 +23,7 @@ import leaderboardRoutes from "./routes/leaderboard.routes.js";
 import themeRoutes from "./routes/theme.routes.js";
 import developersRoutes from "./routes/developers.routes.js";
 import wrappedRoutes from "./routes/wrapped.routes.js";
+import shareRoutes from "./routes/share.routes.js";
 import { backfillBattleStats } from "./services/battle-stats.service.js";
 import { ensureThemeSeeds } from "./services/theme-seeds.js";
 import { initSockets } from "./sockets/index.js";
@@ -109,6 +110,8 @@ app.use("/api/v1/leaderboard", leaderboardRoutes);
 app.use("/api/v1/themes", themeRoutes);
 app.use("/api/v1/developers", developersRoutes);
 app.use("/api/v1/wrapped", wrappedRoutes);
+// Crawler-first link previews (public, redirect humans to the frontend).
+app.use("/s", shareRoutes);
 
 app.use(globalError);
 

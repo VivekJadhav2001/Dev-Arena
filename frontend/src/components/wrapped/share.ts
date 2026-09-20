@@ -1,5 +1,6 @@
 import { toPng } from 'html-to-image'
 import type { IWrappedRecap } from '../../services/wrapped.service'
+import { previewWrappedUrl } from '../../lib/share'
 
 export function shareTextFor(recap: IWrappedRecap): string {
   return `I fought ${recap.totalBattles} battles on DevArena with a ${recap.winRate}% win rate 🔥 Top language: ${recap.topLanguage ?? 'mixed'} · longest streak ${recap.longestWinStreak}. What's your proof?`
@@ -7,6 +8,14 @@ export function shareTextFor(recap: IWrappedRecap): string {
 
 export function recapUrl(userName: string): string {
   return `${window.location.origin}/wrapped/${encodeURIComponent(userName)}`
+}
+
+/**
+ * Crawler-first share URL: serves per-item Open Graph HTML to scrapers
+ * (LinkedIn, X, WhatsApp) and redirects humans to the recap page.
+ */
+export function recapPreviewUrl(userName: string): string {
+  return previewWrappedUrl(userName)
 }
 
 /** Render the hidden 1080×1920 poster node to a PNG blob — chrome-free by construction. */
@@ -45,7 +54,7 @@ export async function nativeSharePoster(recap: IWrappedRecap, blob: Blob): Promi
         files: [file],
         title: `DevArena Wrapped — ${recap.userName}`,
         text: shareTextFor(recap),
-        url: recapUrl(recap.userName),
+        url: recapPreviewUrl(recap.userName),
       })
       return true
     } catch (error) {
@@ -58,11 +67,11 @@ export async function nativeSharePoster(recap: IWrappedRecap, blob: Blob): Promi
 }
 
 export function xShareUrl(recap: IWrappedRecap): string {
-  const params = new URLSearchParams({ text: shareTextFor(recap), url: recapUrl(recap.userName) })
+  const params = new URLSearchParams({ text: shareTextFor(recap), url: recapPreviewUrl(recap.userName) })
   return `https://twitter.com/intent/tweet?${params.toString()}`
 }
 
 export function linkedInShareUrl(recap: IWrappedRecap): string {
-  const params = new URLSearchParams({ url: recapUrl(recap.userName) })
+  const params = new URLSearchParams({ url: recapPreviewUrl(recap.userName) })
   return `https://www.linkedin.com/sharing/share-offsite/?${params.toString()}`
 }

@@ -2,6 +2,7 @@ import { Check, Copy, Instagram, Linkedin, LoaderCircle, MessageCircle, Share2 }
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { copyText } from '../lib/clipboard'
+import { previewBattleUrl, setPageMeta } from '../lib/share'
 import { arenaService, type IBattleDetails } from '../services/arena.service'
 
 export default function BattleDetails() {
@@ -19,8 +20,10 @@ export default function BattleDetails() {
       const message = err instanceof Error ? err.message : 'Unable to load battle details.'
       setError(
         /401|unauthor|session|log in/i.test(message)
-          ? 'Sign in to view these battle details. Details are shared with authorized users only.'
-          : message,
+          ? 'Sign in to view these battle details. Finished battles are public once they end.'
+          : /404|not found/i.test(message)
+            ? 'This battle is not available. Finished battles are public — this one may still be live or private.'
+            : message,
       )
     }
   }, [roomCode])
@@ -31,8 +34,23 @@ export default function BattleDetails() {
     void load()
   }, [load])
 
+  useEffect(() => {
+    if (!details) return
+    const winner = details.standings.find((s) => s.isWinner)
+    setPageMeta({
+      title: winner
+        ? `${winner.username} won battle ${details.roomCode} on DevArena`
+        : `Battle ${details.roomCode} on DevArena`,
+      description: `${details.mode === 'royale' ? '1-vs-many royale' : '1-vs-1 duel'} · ${details.difficulty} · ${details.totalQuestions} questions`,
+      image: winner?.avatarUrl ?? details.standings[0]?.avatarUrl ?? null,
+      url: `${window.location.origin}/battle/${details.roomCode}/details`,
+    })
+  }, [details])
+
   async function handleCopyLink() {
-    const ok = await copyText(`${window.location.origin}/battle/${roomCode}/details`)
+    // Crawler-first URL: scrapers get the battle outcome in the post; humans
+    // land on these details.
+    const ok = await copyText(previewBattleUrl(roomCode))
     setCopiedLink(ok)
     if (ok) window.setTimeout(() => setCopiedLink(false), 2000)
   }
@@ -46,7 +64,7 @@ export default function BattleDetails() {
     return (
       `I just battled through ${headline} on DevArena ` +
       `(${details.totalQuestions} MCQs, ${details.difficulty})! ` +
-      `Full battle details: ${window.location.origin}/battle/${details.roomCode}/details`
+      `Full battle details: ${previewBattleUrl(details.roomCode)}`
     )
   }
 
@@ -75,7 +93,7 @@ export default function BattleDetails() {
     )
   }
 
-  const pageUrl = `${window.location.origin}/battle/${details.roomCode}/details`
+  const pageUrl = previewBattleUrl(details.roomCode)
   const linkedInUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(pageUrl)}`
   const whatsAppUrl = `https://wa.me/?text=${encodeURIComponent(shareText())}`
   const standings = details.standings ?? []

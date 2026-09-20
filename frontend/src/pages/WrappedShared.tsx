@@ -2,6 +2,7 @@ import { Braces, LoaderCircle, Swords } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PosterCard } from '../components/wrapped/PosterCard'
+import { setPageMeta } from '../lib/share'
 import { wrappedService, type IWrappedRecap } from '../services/wrapped.service'
 
 /** Public read-only recap — viewable without logging in, no story controls. */
@@ -23,6 +24,16 @@ export default function WrappedShared() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (!recap) return
+    setPageMeta({
+      title: `${recap.userName}'s DevArena Wrapped`,
+      description: `${recap.totalBattles} battles · ${recap.winRate}% win rate · best streak ${recap.longestWinStreak}`,
+      image: recap.avatarUrl,
+      url: `${window.location.origin}/wrapped/${recap.userName}`,
+    })
+  }, [recap])
 
   if (error && !recap) {
     return (

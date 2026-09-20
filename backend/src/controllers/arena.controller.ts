@@ -1388,8 +1388,9 @@ export async function getHistory(req: Request, res: Response, next: NextFunction
 
 /**
  * GET /api/v1/arena/:roomCode/details — everything about a battle except the
- * questions. Participants always have access; any other signed-in user can
- * view a finished battle (same rule as the shareable result).
+ * questions. Participants always have access; finished battles are public
+ * (logged-out share visitors included). Waiting/active battles 404 for
+ * non-participants. Personalized `my*` fields are null for anonymous viewers.
  */
 export async function getDetails(req: Request, res: Response, next: NextFunction) {
   try {
@@ -1397,12 +1398,15 @@ export async function getDetails(req: Request, res: Response, next: NextFunction
       roomCode: String(req.params.roomCode).toUpperCase(),
     });
     if (!battle) throw ApiError.notFound("Battle not found");
-    const isParticipant = hasPlayer(battle, req.user!.id);
+    const viewerId = req.user?.id;
+    const isParticipant = viewerId != null && hasPlayer(battle, viewerId);
     if (!isParticipant && battle.status !== "finished") {
       throw ApiError.notFound("Battle not found");
     }
     const standings = await standingsFor(battle);
-    const mine = battle.players.find((player) => player.userId.equals(req.user!.id));
+    const mine = viewerId != null
+      ? battle.players.find((player) => player.userId.equals(viewerId))
+      : undefined;
     const myRank = mine
       ? (standings.find((entry) => entry.userId === mine.userId.toString())?.rank ?? null)
       : null;

@@ -49,7 +49,7 @@ interface RecapUser {
   leetcodeStats: { totalSolved: number };
 }
 
-async function buildRecap(user: RecapUser | null): Promise<WrappedRecap> {
+export async function buildRecap(user: RecapUser | null): Promise<WrappedRecap> {
   if (!user) throw ApiError.unauthorized();
   const userId = user._id;
 
