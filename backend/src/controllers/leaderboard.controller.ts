@@ -45,14 +45,18 @@ function entryOf(user: {
 
 const sortSpec = { totalXp: -1 as const, "battleStats.wins": -1 as const, createdAt: 1 as const };
 
+// Private profiles (settings.publicProfile === false) are never ranked.
+// `$ne: false` keeps legacy documents that predate the setting (default true).
+const publicFilter = { "settings.publicProfile": { $ne: false } };
+
 /**
  * GET /api/v1/leaderboard — public global rankings, paginated.
  */
 export async function getLeaderboard(req: Request, res: Response, next: NextFunction) {
   try {
     const { page, limit } = listSchema.parse(req.query);
-    const total = await User.countDocuments({});
-    const users = await User.find({})
+    const total = await User.countDocuments(publicFilter);
+    const users = await User.find(publicFilter)
       .sort(sortSpec)
       .skip((page - 1) * limit)
       .limit(limit)
@@ -93,7 +97,9 @@ export async function getMyRank(req: Request, res: Response, next: NextFunction)
     const myBattles = me.battleStats?.totalBattles ?? 0;
     // createdAt exists at runtime (schema timestamps) and mirrors the list sort's tiebreak.
     const myCreatedAt = (me as unknown as { createdAt: Date }).createdAt;
+    // Rank is computed against the visible (public) board only.
     const ahead = await User.countDocuments({
+      ...publicFilter,
       $or: [
         { totalXp: { $gt: myXp } },
         { totalXp: myXp, "battleStats.wins": { $gt: myWins } },

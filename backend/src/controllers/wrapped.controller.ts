@@ -182,14 +182,17 @@ export async function getMyWrapped(req: Request, res: Response, next: NextFuncti
   }
 }
 
-/** GET /api/v1/wrapped/:username — public read-only recap for sharing. */
+/** GET /api/v1/wrapped/:username — public read-only recap for sharing. Private recaps are visible only to the account owner. */
 export async function getPublicWrapped(req: Request, res: Response, next: NextFunction) {
   try {
     const username = String(req.params.username);
     const user = await User.findOne({
       userName: new RegExp(`^${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
     });
-    if (!user || !user.settings.publicProfile) throw ApiError.notFound("Wrapped recap not found");
+    if (!user) throw ApiError.notFound("Wrapped recap not found");
+    const isOwner = req.user?.id != null && String(user._id) === String(req.user.id);
+    if (!isOwner && user.settings?.publicProfile === false)
+      throw ApiError.notFound("Wrapped recap not found");
     return res.success(200, "Wrapped recap", await buildRecap(user));
   } catch (error) {
     next(error);

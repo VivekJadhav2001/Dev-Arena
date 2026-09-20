@@ -94,7 +94,7 @@ export async function getProfilePreview(req: Request, res: Response): Promise<vo
     const user = await User.findOne({
       userName: new RegExp(`^${escapeRegex(username)}$`, "i"),
     });
-    if (!user || !user.settings.publicProfile) {
+    if (!user || user.settings?.publicProfile === false) {
       res.status(404).type("html").send(notFoundHtml("Profile"));
       return;
     }
@@ -134,7 +134,7 @@ export async function getWrappedPreview(req: Request, res: Response): Promise<vo
     const user = await User.findOne({
       userName: new RegExp(`^${escapeRegex(username)}$`, "i"),
     });
-    if (!user || !user.settings.publicProfile) {
+    if (!user || user.settings?.publicProfile === false) {
       res.status(404).type("html").send(notFoundHtml("Wrapped recap"));
       return;
     }

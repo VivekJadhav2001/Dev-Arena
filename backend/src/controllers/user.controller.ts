@@ -59,7 +59,11 @@ export async function getPublicProfile(
         "i",
       ),
     });
-    if (!user || !user.settings.publicProfile)
+    if (!user) throw ApiError.notFound("Developer not found");
+    // Private profiles are visible only to the account owner. The session is
+    // deserialized even without requireAuth, so the owner's cookie still works.
+    const isOwner = req.user?.id != null && String(user._id) === String(req.user.id);
+    if (!isOwner && user.settings?.publicProfile === false)
       throw ApiError.notFound("Developer not found");
     const profile = toPublicUser(user);
     return res.success(200, "Public developer profile", {
