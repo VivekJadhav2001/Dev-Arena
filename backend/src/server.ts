@@ -29,12 +29,34 @@ import { initSockets } from "./sockets/index.js";
 
 const app = express();
 
+// Render (and most hosts) terminate TLS at a reverse proxy. Without this,
+// Express sees HTTP internally and refuses to set `Secure` session cookies.
+app.set("trust proxy", 1);
+
 app.use(globalResponses);
 
 connectDB();
+
+// FRONTEND_URL may be a single URL or a comma-separated allowlist
+// (e.g. "https://dev-arena-plum.vercel.app,http://localhost:5173").
+const frontendUrls = (env.FRONTEND_URL || "")
+  .split(",")
+  .map((url) => url.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+
+const corsOrigin = (
+  origin: string | undefined,
+  callback: (err: Error | null, allow?: boolean) => void,
+) => {
+  // Same-origin / curl / mobile clients send no Origin — allow them.
+  if (!origin) return callback(null, true);
+  if (frontendUrls.includes(origin)) return callback(null, true);
+  return callback(new Error(`CORS blocked for origin: ${origin}`));
+};
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "*",
+    origin: corsOrigin,
     credentials: true,
   }),
 );
@@ -55,17 +77,21 @@ app.use(
   }),
 );
 
+// Cross-site deployment (Vercel frontend -> Render backend) requires
+// `SameSite=None; Secure` so the browser stores/sends the session cookie
+// on API calls. Localhost stays on `Lax` without `Secure` (plain HTTP).
+const isProduction = env.NODE_ENV === "production";
+
 app.use(
   session({
     secret: env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    proxy: isProduction,
     cookie: {
       httpOnly: true,
-      // Cookies must be Secure in production (HTTPS); plain HTTP needs it off
-      // for local development, where NODE_ENV defaults to "development".
-      secure: env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
       maxAge: 1000 * 60 * 60 * 24 * 7,
     },
   }),
@@ -88,7 +114,7 @@ app.use(globalError);
 
 const httpServer = app.listen(process.env.PORT, () => console.log(`Server is running ${process.env.PORT}`));
 
-initSockets(httpServer, process.env.FRONTEND_URL || "*");
+initSockets(httpServer, frontendUrls);
 
 // One-time repair: battles finished before stat persistence existed never
 // wrote xp/battleStats. Replays them (only for never-computed users) so the

@@ -192,9 +192,10 @@ function trackSocketDisconnect(socketId: string): string[] {
  * A single namespace is used with per-user rooms (`presence:*`,
  * `battle:*`, `live:*`); game facts always travel over REST.
  */
-export function initSockets(httpServer: HttpServer, frontendUrl: string): Server {
+export function initSockets(httpServer: HttpServer, frontendUrl: string | string[]): Server {
+  const allowedOrigins = Array.isArray(frontendUrl) ? frontendUrl : [frontendUrl];
   io = new Server(httpServer, {
-    cors: { origin: frontendUrl || "*", credentials: true },
+    cors: { origin: allowedOrigins.length > 0 ? allowedOrigins : "*", credentials: true },
   });
 
   io.on("connection", (socket) => {

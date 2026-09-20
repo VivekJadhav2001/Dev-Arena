@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { toPublicUser } from "../utils/user-public.js";
 import { User } from "../models/user.model.js";
+import { env } from "../config/env.js";
 
 const getCurrentUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -29,7 +30,14 @@ const logout = async (req: Request, res: Response, next: NextFunction) => {
           return next(sessionError);
         }
 
-        res.clearCookie("connect.sid");
+        // clearCookie must mirror the session cookie attributes, otherwise
+        // the browser keeps a cross-site `SameSite=None; Secure` cookie.
+        const isProduction = env.NODE_ENV === "production";
+        res.clearCookie("connect.sid", {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+        });
         return res.success(200, "Logged out successfully");
       });
     });
