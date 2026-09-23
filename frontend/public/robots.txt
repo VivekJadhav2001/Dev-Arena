@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Keep private / transient battle rooms out of the index.
+Disallow: /battle/
+Disallow: /live/
+Disallow: /settings
+
+Sitemap: https://dev-arena-plum.vercel.app/sitemap.xml

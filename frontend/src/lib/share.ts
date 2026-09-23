@@ -60,6 +60,15 @@ export function setPageMeta({ title, description, image, url }: PageMeta): void 
   })
   desc.setAttribute('content', description)
 
+  const setName = (name: string, content: string) => {
+    const tag = upsertMeta(`meta[name="${name}"]`, () => {
+      const next = document.createElement('meta')
+      next.setAttribute('name', name)
+      return next
+    })
+    tag.setAttribute('content', content)
+  }
+
   const set = (property: string, content: string) => {
     const tag = upsertMeta(`meta[property="${property}"]`, () => {
       const next = document.createElement('meta')
@@ -73,13 +82,21 @@ export function setPageMeta({ title, description, image, url }: PageMeta): void 
   set('og:description', description)
   set('og:url', canonical)
   set('og:type', 'website')
+  setName('twitter:title', title)
+  setName('twitter:description', description)
+
+  let canonicalLink = document.head.querySelector<HTMLLinkElement>(
+    'link[rel="canonical"]',
+  )
+  if (!canonicalLink) {
+    canonicalLink = document.createElement('link')
+    canonicalLink.setAttribute('rel', 'canonical')
+    document.head.appendChild(canonicalLink)
+  }
+  canonicalLink.setAttribute('href', canonical)
+
   if (image) {
     set('og:image', image)
-    const twitterImage = upsertMeta('meta[name="twitter:image"]', () => {
-      const next = document.createElement('meta')
-      next.setAttribute('name', 'twitter:image')
-      return next
-    })
-    twitterImage.setAttribute('content', image)
+    setName('twitter:image', image)
   }
 }

@@ -2,33 +2,125 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- <link rel="icon" type="image/svg+xml" href="/favicon.svg" /> -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DevArena — proof of skill, not just a profile</title>
+    <title>DevArena — Proof of Skill, Not Just a Profile | 1v1 Coding Battles, Developer DNA & Rankings</title>
+
+    <!-- Primary SEO -->
     <meta
       name="description"
-      content="Developer battles, DNA, rankings and season Wrapped. Make every commit count."
+      content="DevArena turns your GitHub history into Developer DNA, then lets you defend it in live 1v1 coding battles. Server-verified MCQ duels, royales, XP, badges, leaderboards and shareable Wrapped recaps."
     />
+    <meta
+      name="keywords"
+      content="DevArena, developer battles, coding battles, 1v1 coding duel, competitive programming, GitHub analysis, developer DNA, coding leaderboard, LeetCode stats, GitHub Wrapped, programmer ranking"
+    />
+    <meta name="author" content="DevArena" />
+    <meta name="creator" content="DevArena" />
+    <meta name="publisher" content="DevArena" />
+    <meta name="application-name" content="DevArena" />
+    <meta name="generator" content="Vite + React" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <meta name="googlebot" content="index, follow" />
     <meta name="theme-color" content="#070b16" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Canonical (prevents duplicate-content penalties) -->
+    <link rel="canonical" href="https://dev-arena-plum.vercel.app/" />
+
+    <!-- Icons / PWA -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/og-cover.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="DevArena" />
-    <meta property="og:title" content="DevArena — proof of skill, not just a profile" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://dev-arena-plum.vercel.app/" />
+    <meta property="og:title" content="DevArena — Proof of Skill, Not Just a Profile" />
     <meta
       property="og:description"
-      content="Developer battles, DNA, rankings and season Wrapped. Make every commit count."
+      content="Connect GitHub, mint your Developer DNA, and battle other developers live. Server-verified wins, XP, badges and rankings."
     />
     <meta property="og:image" content="https://dev-arena-plum.vercel.app/og-cover.png" />
-    <meta property="og:url" content="https://dev-arena-plum.vercel.app/" />
+    <meta property="og:image:alt" content="DevArena — developer coding battle arena" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="DevArena — proof of skill, not just a profile" />
+    <meta name="twitter:site" content="@DevArena" />
+    <meta name="twitter:title" content="DevArena — Proof of Skill, Not Just a Profile" />
     <meta
       name="twitter:description"
       content="Developer battles, DNA, rankings and season Wrapped. Make every commit count."
     />
     <meta name="twitter:image" content="https://dev-arena-plum.vercel.app/og-cover.png" />
+    <meta name="twitter:image:alt" content="DevArena — developer coding battle arena" />
+
+    <!--
+      Google Search Console verification:
+      1. Go to https://search.google.com/search-console
+      2. Add property https://dev-arena-plum.vercel.app/
+      3. Copy your verification token and add it below:
+      <meta name="google-site-verification" content="PASTE_TOKEN_HERE" />
+    -->
+
+    <!-- Structured data: WebSite + Organization + WebApplication -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://dev-arena-plum.vercel.app/#website",
+            "url": "https://dev-arena-plum.vercel.app/",
+            "name": "DevArena",
+            "description": "Developer identity + competitive coding platform. GitHub analysis, Developer DNA, live 1v1 battles, XP, badges and leaderboards.",
+            "inLanguage": "en",
+            "publisher": { "@id": "https://dev-arena-plum.vercel.app/#organization" }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://dev-arena-plum.vercel.app/#organization",
+            "name": "DevArena",
+            "url": "https://dev-arena-plum.vercel.app/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://dev-arena-plum.vercel.app/og-cover.png"
+            },
+            "slogan": "Proof of skill, not just a profile."
+          },
+          {
+            "@type": "WebApplication",
+            "name": "DevArena",
+            "url": "https://dev-arena-plum.vercel.app/",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Web",
+            "browserRequirements": "Requires JavaScript. Requires HTML5.",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "description": "Connect GitHub, mint Developer DNA, battle in live 1v1 coding duels and royales, earn XP and climb the leaderboard."
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <noscript>
+      <h1>DevArena — Proof of skill, not just a profile</h1>
+      <p>
+        DevArena is a competitive coding platform: connect GitHub, get your
+        Developer DNA, battle in live 1v1 duels, earn XP and climb the
+        leaderboard. Enable JavaScript to enter the arena.
+      </p>
+      <ul>
+        <li><a href="https://dev-arena-plum.vercel.app/">Home</a></li>
+        <li><a href="https://dev-arena-plum.vercel.app/login">Login</a></li>
+        <li><a href="https://dev-arena-plum.vercel.app/leaderboard">Leaderboard</a></li>
+        <li><a href="https://dev-arena-plum.vercel.app/arena">Arena</a></li>
+      </ul>
+    </noscript>
   </body>
 </html>

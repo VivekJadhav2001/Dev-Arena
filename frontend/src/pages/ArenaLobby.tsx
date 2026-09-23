@@ -2,6 +2,7 @@ import { Ban, Check, Copy, Eye, History, LoaderCircle, Plus, Radio, Swords, Trop
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { copyText } from '../lib/clipboard'
+import { setPageMeta } from '../lib/share'
 import { arenaService, type BattleMode, type IBattleResult, type IMyActiveBattle } from '../services/arena.service'
 import { useAppStore } from '../store/app.store'
 import type { Difficulty } from '../types'
@@ -147,6 +148,13 @@ export default function ArenaLobby() {
   const historyTotalPages = historyData?.totalPages ?? 1
 
   useEffect(() => {
+    setPageMeta({
+      title: 'Battle Arena — Create, Join or Quick-Match | DevArena',
+      description:
+        'Enter the DevArena: create a 1v1 duel or royale room, join with a code, or quick-match. Server-scored live coding battles.',
+      image: 'https://dev-arena-plum.vercel.app/og-cover.png',
+      url: 'https://dev-arena-plum.vercel.app/arena',
+    })
     // Served from the app store (prefetched at login); refetches only when stale.
     void ensureHistory()
   }, [ensureHistory])

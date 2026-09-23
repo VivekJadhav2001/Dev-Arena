@@ -16,6 +16,8 @@ import {
   Zap,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { setPageMeta } from '../lib/share'
 
 const api = import.meta.env.VITE_BACKEND_URL || 'http://localhost:2001/api/v1'
 
@@ -68,6 +70,16 @@ const fadeUp = {
 }
 
 export default function LandingPage() {
+  useEffect(() => {
+    setPageMeta({
+      title: 'DevArena — Proof of Skill, Not Just a Profile',
+      description:
+        'DevArena turns your GitHub history into Developer DNA, then lets you defend it in live 1v1 coding battles. Server-verified wins, XP, badges and rankings.',
+      image: 'https://dev-arena-plum.vercel.app/og-cover.png',
+      url: 'https://dev-arena-plum.vercel.app/',
+    })
+  }, [])
+
   return (
     <div className="min-h-screen overflow-hidden text-text">
       {/* ── Nav ─────────────────────────────────────────── */}

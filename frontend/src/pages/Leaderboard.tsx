@@ -6,6 +6,7 @@ import {
   type ILeaderboardEntry,
   type IMyRank,
 } from "../services/leaderboard.service";
+import { setPageMeta } from "../lib/share";
 import { useAuthStore } from "../store/auth.store";
 
 function EntryRow({
@@ -62,6 +63,16 @@ function EntryRow({
 }
 
 export default function Leaderboard() {
+  useEffect(() => {
+    setPageMeta({
+      title: "Developer Rankings — DevArena Leaderboard",
+      description:
+        "Server-verified developer rankings: 1v1 duel wins, royale victories, XP and levels. Only real battle results count.",
+      image: "https://dev-arena-plum.vercel.app/og-cover.png",
+      url: "https://dev-arena-plum.vercel.app/leaderboard",
+    });
+  }, []);
+
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
   const [entries, setEntries] = useState<ILeaderboardEntry[]>([]);
   const [page, setPage] = useState(1);
