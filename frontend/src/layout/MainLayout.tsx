@@ -106,7 +106,9 @@ export function MainLayout() {
       window.removeEventListener("live:battle-started", onLiveStarted);
     };
   }, [user]);
-  const items = [...navItems, { to: profilePath, label: "Profile", icon: UserRound }];
+  const items = [...navItems, { to: profilePath, label: "Profile", icon: UserRound }].filter(
+    (item, index, all) => all.findIndex((other) => other.to === item.to) === index,
+  );
   return (
     <div className="min-h-screen text-text">
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/85 backdrop-blur-xl">
